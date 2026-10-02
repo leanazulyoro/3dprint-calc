@@ -17,7 +17,6 @@ import {
   type MlInstallments,
 } from "@/lib/calc";
 import { CURRENCIES, hoursLabel, money, percent, type CurrencyCode } from "@/lib/format";
-import { parseListingPrices } from "@/lib/ml";
 import { decodeState, encodeState } from "@/lib/url";
 import { Checkbox, NumberField, Section, SelectField, TextField } from "./fields";
 import { Summary, buildLayers } from "./Summary";
@@ -40,9 +39,6 @@ export function Calculator() {
   const [currency, setCurrency] = useState<CurrencyCode>("ARS");
   const [loaded, setLoaded] = useState(false);
   const [presetId, setPresetId] = useState("a1");
-  const [mlApi, setMlApi] = useState<{ configured: boolean } | null>(null);
-  const [mlCategory, setMlCategory] = useState("");
-  const [mlStatus, setMlStatus] = useState<string | null>(null);
 
   // Hydrate from a shared link first, then from this browser's saved values.
   useEffect(() => {
@@ -77,45 +73,6 @@ export function Calculator() {
     [input, mlAvailable],
   );
   const sym = SYMBOL[currency];
-
-  // Only ask whether live fees are configured once someone turns ML on.
-  useEffect(() => {
-    if (!input.mlEnabled || mlApi !== null) return;
-    let cancelled = false;
-    fetch("/api/ml-fees")
-      .then((r) => r.json())
-      .then((d: { configured?: boolean }) => {
-        if (!cancelled) setMlApi({ configured: d.configured === true });
-      })
-      .catch(() => {
-        if (!cancelled) setMlApi({ configured: false });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [input.mlEnabled, mlApi]);
-
-  const fetchMlFees = async () => {
-    const price = result.ml?.listPrice ?? result.pricePerUnitWithVat;
-    setMlStatus("Consultando…");
-    try {
-      const qs = new URLSearchParams({ price: String(Math.max(1, Math.round(price))) });
-      if (mlCategory.trim()) qs.set("category", mlCategory.trim().toUpperCase());
-      const r = await fetch(`/api/ml-fees?${qs}`);
-      const data = (await r.json()) as { error?: string; fees?: unknown };
-      if (!r.ok) throw new Error(data.error ?? `Error ${r.status}`);
-      const fee = parseListingPrices(data.fees).find((f) => f.id === "gold_special") ?? parseListingPrices(data.fees)[0];
-      if (!fee) throw new Error("Mercado Libre no devolvió comisiones para ese precio");
-      const pct =
-        fee.percentage ?? (fee.saleFee !== null ? ((fee.saleFee - (fee.fixedFee ?? 0)) / price) * 100 : null);
-      if (pct === null) throw new Error("La respuesta no trae porcentaje");
-      const rounded = Math.round(pct * 100) / 100;
-      setInput((prev) => ({ ...prev, mlCommission: rounded }));
-      setMlStatus(`${fee.name}: ${percent(rounded)} según Mercado Libre.`);
-    } catch (e) {
-      setMlStatus(e instanceof Error ? e.message : "No se pudo consultar");
-    }
-  };
 
   const set = <K extends keyof CalcInput>(key: K) => (value: CalcInput[K]) =>
     setInput((prev) => ({ ...prev, [key]: value }));
@@ -361,25 +318,6 @@ export function Calculator() {
                       label: o.rate ? `${o.label} (+${percent(o.rate)})` : o.label,
                     }))}
                   />
-                  {mlApi?.configured ? (
-                    <div className="sm:col-span-2 flex flex-wrap items-end gap-3">
-                      <TextField
-                        label="Categoría de ML"
-                        value={mlCategory}
-                        onChange={setMlCategory}
-                        placeholder="MLA1234 (opcional)"
-                        className="w-48"
-                      />
-                      <button type="button" className="btn" onClick={fetchMlFees}>
-                        Consultar comisión en Mercado Libre
-                      </button>
-                      {mlStatus ? (
-                        <span role="status" className="text-sm text-ink-2 basis-full">
-                          {mlStatus}
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : null}
                   <Checkbox
                     label={`Sumar ${percent(ML_FEES_VAT)} de IVA sobre los cargos`}
                     checked={input.mlFeesVat}

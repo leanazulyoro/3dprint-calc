@@ -14,11 +14,13 @@ Calculá el costo real de una pieza impresa en 3D y cuánto cobrarla. Pensada pa
 - **IVA** (opcional): alícuota configurable sobre el precio sugerido.
 - **Mercado Libre** (opcional, solo ARS): calcula a cuánto publicar para que, descontados los cargos, te quede el precio sugerido. Cargo por vender (%), cuotas, costo fijo por unidad según tramo de precio y 21% de IVA sobre los cargos. Tabla oficial de ML, septiembre 2026; revisala si cambia.
 
-## Comisión de Mercado Libre en vivo (opcional)
+La API de Mercado Libre ya no es pública (todo `api.mercadolibre.com` responde 403 sin token), así que los porcentajes van en una tabla editable. Una versión con consulta en vivo vía `listing_prices` y token de app quedó en el historial (`git show 866fed2 -- src/app/api`); requiere un servidor, no funciona en GitHub Pages.
 
-La API de ML ya no es pública (todo `api.mercadolibre.com` responde 403 sin token). Si creás una app en developers.mercadolibre.com.ar y cargás `ML_CLIENT_ID` y `ML_CLIENT_SECRET` (ver `.env.example`), aparece el botón "Consultar comisión en Mercado Libre", que usa `sites/MLA/listing_prices` con un token de app (`client_credentials`). Sin credenciales, se usa la tabla incorporada.
+## Deploy
 
-Los valores se guardan en el navegador. "Copiar link" genera una URL con todos los datos.
+Sitio estático en GitHub Pages: https://leanazulyoro.github.io/3dprint-calc/
+
+Cada push a `main` corre `.github/workflows/pages.yml` (tests, `next build` con `output: export` y `basePath=/3dprint-calc`) y publica `out/`.
 
 ## Desarrollo
 
