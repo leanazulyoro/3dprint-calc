@@ -12,6 +12,9 @@ type Props = {
   currency: CurrencyCode;
   onCopyText: () => Promise<void> | void;
   onCopyLink: () => Promise<void> | void;
+  onSave: () => Promise<void> | void;
+  onSaveAsNew: (() => Promise<void> | void) | null;
+  canSave: boolean;
 };
 
 export function buildLayers(r: CalcResult, failureRate: number): Layer[] {
@@ -25,7 +28,7 @@ export function buildLayers(r: CalcResult, failureRate: number): Layer[] {
   ];
 }
 
-export function Summary({ input, result: r, currency, onCopyText, onCopyLink }: Props) {
+export function Summary({ input, result: r, currency, onCopyText, onCopyLink, onSave, onSaveAsNew, canSave }: Props) {
   const [flash, setFlash] = useState<string | null>(null);
   const layers = buildLayers(r, input.failureRate);
   const material = MATERIALS.find((m) => m.id === input.material)?.label ?? input.material;
@@ -36,8 +39,8 @@ export function Summary({ input, result: r, currency, onCopyText, onCopyLink }: 
     try {
       await fn();
       setFlash(label);
-    } catch {
-      setFlash("No se pudo copiar");
+    } catch (e) {
+      setFlash(e instanceof Error && e.message ? e.message : "No se pudo");
     }
     window.setTimeout(() => setFlash(null), 1600);
   };
@@ -167,7 +170,20 @@ export function Summary({ input, result: r, currency, onCopyText, onCopyLink }: 
       ) : null}
 
       <div className="no-print mt-6 flex flex-wrap gap-2">
-        <button type="button" className="btn btn-primary" onClick={() => flashThen("Resumen copiado", onCopyText)}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={!canSave}
+          onClick={() => flashThen(onSaveAsNew ? "Cambios guardados" : "Presupuesto guardado", onSave)}
+        >
+          {onSaveAsNew ? "Guardar cambios" : "Guardar presupuesto"}
+        </button>
+        {onSaveAsNew ? (
+          <button type="button" className="btn" onClick={() => flashThen("Guardado como nuevo", onSaveAsNew)}>
+            Guardar como nuevo
+          </button>
+        ) : null}
+        <button type="button" className="btn" onClick={() => flashThen("Resumen copiado", onCopyText)}>
           Copiar resumen
         </button>
         <button type="button" className="btn" onClick={() => flashThen("Link copiado", onCopyLink)}>

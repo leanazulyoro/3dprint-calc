@@ -17,11 +17,32 @@ import {
   type MlInstallments,
 } from "@/lib/calc";
 import { CURRENCIES, hoursLabel, money, percent, type CurrencyCode } from "@/lib/format";
+import { csvFilename, quotesToCsv } from "@/lib/csv";
+import { deleteQuote, hasIndexedDb, listQuotes, newQuoteId, putQuote, type Quote } from "@/lib/quotes";
 import { decodeState, encodeState } from "@/lib/url";
+import { SavedQuotes } from "./SavedQuotes";
 import { Checkbox, NumberField, Section, SelectField, TextField } from "./fields";
 import { Summary, buildLayers } from "./Summary";
 
 const STORAGE_KEY = "calc3d:v1";
+const ACTIVE_KEY = "calc3d:active";
+
+function readActiveId(): string | null {
+  try {
+    return window.localStorage.getItem(ACTIVE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeActiveId(id: string | null) {
+  try {
+    if (id) window.localStorage.setItem(ACTIVE_KEY, id);
+    else window.localStorage.removeItem(ACTIVE_KEY);
+  } catch {
+    // Storage blocked: the form itself is still remembered elsewhere or not at all.
+  }
+}
 
 const SYMBOL: Record<CurrencyCode, string> = {
   ARS: "$",
@@ -39,6 +60,9 @@ export function Calculator() {
   const [currency, setCurrency] = useState<CurrencyCode>("ARS");
   const [loaded, setLoaded] = useState(false);
   const [presetId, setPresetId] = useState("a1");
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [quotesAvailable, setQuotesAvailable] = useState(true);
+  const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null);
 
   // Hydrate from a shared link first, then from this browser's saved values.
   useEffect(() => {
@@ -66,6 +90,26 @@ export function Calculator() {
     }
   }, [input, currency, loaded]);
 
+  // Saved quotes, plus which one the form was last showing.
+  useEffect(() => {
+    let cancelled = false;
+    const load = hasIndexedDb() ? listQuotes() : Promise.reject(new Error("Sin IndexedDB"));
+    load
+      .then((list) => {
+        if (cancelled) return;
+        setQuotes(list);
+        const active = readActiveId();
+        if (active && list.some((q) => q.id === active)) setActiveQuoteId(active);
+        else writeActiveId(null);
+      })
+      .catch(() => {
+        if (!cancelled) setQuotesAvailable(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Mercado Libre's fixed fees are in pesos: only offer it with ARS.
   const mlAvailable = currency === "ARS";
   const result = useMemo(
@@ -81,9 +125,67 @@ export function Calculator() {
   const shownPreset = preset && preset.watts === input.watts ? preset.id : "";
   const isPreset = MARGIN_PRESETS.some((m) => m.value === input.multiplier);
 
+  const saveQuote = async (asNew: boolean) => {
+    if (!quotesAvailable) throw new Error("Este navegador no permite guardar");
+    const existing = asNew ? undefined : quotes.find((q) => q.id === activeQuoteId);
+    const now = Date.now();
+    const quote: Quote = {
+      id: existing?.id ?? newQuoteId(),
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+      name: input.name.trim() || `Presupuesto ${new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(now)}`,
+      currency,
+      input,
+      result,
+    };
+    await putQuote(quote);
+    setQuotes((prev) => {
+      const rest = prev.filter((q) => q.id !== quote.id);
+      return [quote, ...rest].sort((a, b) => b.createdAt - a.createdAt);
+    });
+    setActiveQuoteId(quote.id);
+    writeActiveId(quote.id);
+  };
+
+  const loadQuote = (q: Quote) => {
+    setInput({ ...DEFAULT_INPUT, ...q.input });
+    setCurrency(q.currency);
+    setActiveQuoteId(q.id);
+    writeActiveId(q.id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const removeQuote = async (q: Quote) => {
+    if (!window.confirm(`¿Borrar "${q.name}"?`)) return;
+    try {
+      await deleteQuote(q.id);
+      setQuotes((prev) => prev.filter((x) => x.id !== q.id));
+      if (activeQuoteId === q.id) {
+        setActiveQuoteId(null);
+        writeActiveId(null);
+      }
+    } catch {
+      window.alert("No se pudo borrar el presupuesto.");
+    }
+  };
+
+  const exportCsv = () => {
+    const blob = new Blob([quotesToCsv(quotes)], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = csvFilename();
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const reset = () => {
     setInput(DEFAULT_INPUT);
     setCurrency("ARS");
+    setActiveQuoteId(null);
+    writeActiveId(null);
     try {
       window.localStorage.removeItem(STORAGE_KEY);
     } catch {
@@ -169,8 +271,8 @@ export function Calculator() {
             <NumberField label="Precio del filamento" value={input.pricePerKg} onChange={set("pricePerKg")} unit={`${sym}/kg`} />
             <NumberField label="Peso" value={input.grams} onChange={set("grams")} unit="g" />
             <div className="grid grid-cols-2 gap-3">
-              <NumberField label="Tiempo" value={input.hours} onChange={set("hours")} unit="h" />
-              <NumberField label=" " value={input.minutes} onChange={set("minutes")} unit="min" />
+              <NumberField label="Horas" value={input.hours} onChange={set("hours")} unit="h" />
+              <NumberField label="Minutos" value={input.minutes} onChange={set("minutes")} unit="min" />
             </div>
           </Section>
 
@@ -354,9 +456,21 @@ export function Calculator() {
             currency={currency}
             onCopyText={() => navigator.clipboard.writeText(summaryText())}
             onCopyLink={() => navigator.clipboard.writeText(shareUrl())}
+            onSave={() => saveQuote(false)}
+            onSaveAsNew={activeQuoteId ? () => saveQuote(true) : null}
+            canSave={quotesAvailable}
           />
         </div>
       </div>
+
+      <SavedQuotes
+        quotes={quotes}
+        activeId={activeQuoteId}
+        available={quotesAvailable}
+        onLoad={loadQuote}
+        onDelete={removeQuote}
+        onExport={exportCsv}
+      />
 
       <a
         href="#resumen"

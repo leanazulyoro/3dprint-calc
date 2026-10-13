@@ -4,8 +4,12 @@
     {
       "name": "dev",
       "runtimeExecutable": "sh",
-      "runtimeArgs": ["-c", "PATH=/Users/leandroalmeida/.nvm/versions/node/v22.23.1/bin:$PATH pnpm dev"],
-      "port": 3000
+      "runtimeArgs": [
+        "-c",
+        "PATH=/Users/leandroalmeida/.nvm/versions/node/v22.23.1/bin:$PATH pnpm dev"
+      ],
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }
