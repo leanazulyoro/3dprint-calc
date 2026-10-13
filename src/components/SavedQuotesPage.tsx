@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MATERIALS } from "@/lib/calc";
-import { csvFilename, quotesToCsv } from "@/lib/csv";
+import { csvFilename, csvToQuotes, quotesToCsv } from "@/lib/csv";
 import { hoursLabel, money } from "@/lib/format";
-import { deleteQuote, hasIndexedDb, listQuotes, type Quote } from "@/lib/quotes";
+import { deleteQuote, hasIndexedDb, listQuotes, putQuote, type Quote } from "@/lib/quotes";
 import { readActiveId, writeActiveId, writeState } from "@/lib/storage";
 
 const when = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" });
@@ -16,6 +16,8 @@ export function SavedQuotesPage() {
   const [quotes, setQuotes] = useState<Quote[] | null>(null);
   const [available, setAvailable] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,6 +72,35 @@ export function SavedQuotesPage() {
     URL.revokeObjectURL(url);
   };
 
+  const importCsv = async (file: File) => {
+    setNotice("Importando…");
+    try {
+      const { quotes: parsed, errors } = csvToQuotes(await file.text());
+      const existing = new Set((quotes ?? []).map((q) => q.id));
+      let added = 0;
+      let updated = 0;
+      for (const q of parsed) {
+        await putQuote(q);
+        if (existing.has(q.id)) updated++;
+        else added++;
+      }
+      setQuotes(await listQuotes());
+      const parts = [];
+      if (added) parts.push(`${added} ${added === 1 ? "nuevo" : "nuevos"}`);
+      if (updated) parts.push(`${updated} ${updated === 1 ? "actualizado" : "actualizados"}`);
+      if (errors.length) {
+        const detail = errors
+          .slice(0, 3)
+          .map((e) => `línea ${e.line}: ${e.message}`)
+          .join("; ");
+        parts.push(`${errors.length} con error (${detail}${errors.length > 3 ? "…" : ""})`);
+      }
+      setNotice(parts.length ? `Importación: ${parts.join(", ")}.` : "El archivo no tenía filas.");
+    } catch (e) {
+      setNotice(e instanceof Error && e.message ? `No se pudo importar: ${e.message}` : "No se pudo importar.");
+    }
+  };
+
   const list = quotes ?? [];
 
   return (
@@ -84,14 +115,41 @@ export function SavedQuotesPage() {
           <h1 className="display text-3xl sm:text-4xl font-semibold leading-none mt-3">Presupuestos guardados</h1>
           <p className="mt-2 text-ink-2 text-base sm:text-lg leading-snug">
             {available
-              ? "Quedan en este navegador. Exportalos a CSV para abrirlos en Excel o Sheets."
+              ? "Quedan en este navegador. Exportalos a CSV para abrirlos en Excel o Sheets, o para pasarlos a otro dispositivo con Importar."
               : "Este navegador no permite guardar datos locales."}
           </p>
         </div>
-        <button type="button" className="btn" onClick={exportCsv} disabled={list.length === 0}>
-          Exportar CSV
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn"
+            disabled={!available}
+            onClick={() => fileRef.current?.click()}
+          >
+            Importar CSV
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) void importCsv(file);
+            }}
+          />
+          <button type="button" className="btn" onClick={exportCsv} disabled={list.length === 0}>
+            Exportar CSV
+          </button>
+        </div>
       </header>
+
+      {notice ? (
+        <p role="status" className="mt-4 text-sm text-ink-2">
+          {notice}
+        </p>
+      ) : null}
 
       {quotes === null ? (
         <p className="mt-8 text-sm text-ink-3">Cargando…</p>
