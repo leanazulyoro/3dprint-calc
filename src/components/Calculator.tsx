@@ -17,32 +17,12 @@ import {
   type MlInstallments,
 } from "@/lib/calc";
 import { CURRENCIES, hoursLabel, money, percent, type CurrencyCode } from "@/lib/format";
-import { csvFilename, quotesToCsv } from "@/lib/csv";
-import { deleteQuote, hasIndexedDb, listQuotes, newQuoteId, putQuote, type Quote } from "@/lib/quotes";
+import Link from "next/link";
+import { hasIndexedDb, listQuotes, newQuoteId, putQuote, type Quote } from "@/lib/quotes";
+import { clearState, readActiveId, readState, writeActiveId, writeState } from "@/lib/storage";
 import { decodeState, encodeState } from "@/lib/url";
-import { SavedQuotes } from "./SavedQuotes";
 import { Checkbox, NumberField, Section, SelectField, TextField } from "./fields";
 import { Summary, buildLayers } from "./Summary";
-
-const STORAGE_KEY = "calc3d:v1";
-const ACTIVE_KEY = "calc3d:active";
-
-function readActiveId(): string | null {
-  try {
-    return window.localStorage.getItem(ACTIVE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function writeActiveId(id: string | null) {
-  try {
-    if (id) window.localStorage.setItem(ACTIVE_KEY, id);
-    else window.localStorage.removeItem(ACTIVE_KEY);
-  } catch {
-    // Storage blocked: the form itself is still remembered elsewhere or not at all.
-  }
-}
 
 const SYMBOL: Record<CurrencyCode, string> = {
   ARS: "$",
@@ -62,19 +42,13 @@ export function Calculator() {
   const [presetId, setPresetId] = useState("a1");
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [quotesAvailable, setQuotesAvailable] = useState(true);
+  const [quotesLoaded, setQuotesLoaded] = useState(false);
   const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null);
 
   // Hydrate from a shared link first, then from this browser's saved values.
   useEffect(() => {
     let saved = decodeState(new URLSearchParams(window.location.search));
-    if (!saved.input) {
-      try {
-        const raw = window.localStorage.getItem(STORAGE_KEY);
-        if (raw) saved = decodeState(new URLSearchParams(raw));
-      } catch {
-        // Storage blocked: keep defaults.
-      }
-    }
+    if (!saved.input) saved = readState();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration from URL/storage
     if (saved.input) setInput(saved.input);
     if (saved.currency) setCurrency(saved.currency);
@@ -83,11 +57,7 @@ export function Calculator() {
 
   useEffect(() => {
     if (!loaded) return;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, encodeState({ input, currency }));
-    } catch {
-      // Storage blocked: nothing to persist.
-    }
+    writeState({ input, currency });
   }, [input, currency, loaded]);
 
   // Saved quotes, plus which one the form was last showing.
@@ -98,6 +68,7 @@ export function Calculator() {
       .then((list) => {
         if (cancelled) return;
         setQuotes(list);
+        setQuotesLoaded(true);
         const active = readActiveId();
         if (active && list.some((q) => q.id === active)) setActiveQuoteId(active);
         else writeActiveId(null);
@@ -147,50 +118,12 @@ export function Calculator() {
     writeActiveId(quote.id);
   };
 
-  const loadQuote = (q: Quote) => {
-    setInput({ ...DEFAULT_INPUT, ...q.input });
-    setCurrency(q.currency);
-    setActiveQuoteId(q.id);
-    writeActiveId(q.id);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const removeQuote = async (q: Quote) => {
-    if (!window.confirm(`¿Borrar "${q.name}"?`)) return;
-    try {
-      await deleteQuote(q.id);
-      setQuotes((prev) => prev.filter((x) => x.id !== q.id));
-      if (activeQuoteId === q.id) {
-        setActiveQuoteId(null);
-        writeActiveId(null);
-      }
-    } catch {
-      window.alert("No se pudo borrar el presupuesto.");
-    }
-  };
-
-  const exportCsv = () => {
-    const blob = new Blob([quotesToCsv(quotes)], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = csvFilename();
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  };
-
   const reset = () => {
     setInput(DEFAULT_INPUT);
     setCurrency("ARS");
     setActiveQuoteId(null);
     writeActiveId(null);
-    try {
-      window.localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // ignore
-    }
+    clearState();
   };
 
   const shareUrl = () => {
@@ -248,6 +181,9 @@ export function Calculator() {
           <button type="button" className="btn" onClick={reset}>
             Reiniciar
           </button>
+          <Link href="/guardados" className="btn">
+            Guardados{quotesLoaded ? ` (${quotes.length})` : ""}
+          </Link>
         </div>
       </header>
 
@@ -462,15 +398,6 @@ export function Calculator() {
           />
         </div>
       </div>
-
-      <SavedQuotes
-        quotes={quotes}
-        activeId={activeQuoteId}
-        available={quotesAvailable}
-        onLoad={loadQuote}
-        onDelete={removeQuote}
-        onExport={exportCsv}
-      />
 
       <a
         href="#resumen"
