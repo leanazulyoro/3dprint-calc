@@ -12,7 +12,6 @@ import { migrateQuotes } from "@/lib/migrate";
 import { printerFields, type Printer } from "@/lib/printers";
 import { withPrinter, type Quote } from "@/lib/quotes";
 import { readActiveId, writeActiveId, writePrinterId, writeState } from "@/lib/storage";
-import { AuthBar } from "./AuthBar";
 
 const when = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" });
 
@@ -179,7 +178,7 @@ export function SavedQuotesPage() {
   const list = quotes ?? [];
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 pt-8 pb-16">
+    <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 pt-4 pb-16">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
           <p className="text-sm">
@@ -195,7 +194,6 @@ export function SavedQuotesPage() {
           </p>
         </div>
         <div className="flex flex-col items-end gap-3">
-          <AuthBar />
           <div className="flex flex-wrap gap-2">
             <button type="button" className="btn" disabled={busy || Boolean(error)} onClick={() => fileRef.current?.click()}>
               Importar CSV

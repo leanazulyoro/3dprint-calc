@@ -32,7 +32,6 @@ import {
   writeState,
 } from "@/lib/storage";
 import { decodeState, encodeState } from "@/lib/url";
-import { AuthBar } from "./AuthBar";
 import { Checkbox, NumberField, Section, SelectField, TextField } from "./fields";
 import { Summary, buildLayers } from "./Summary";
 
@@ -304,7 +303,7 @@ export function Calculator() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 pt-8 pb-28 lg:pb-16">
+    <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 pt-4 pb-28 lg:pb-16">
       <header className="no-print flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
           <h1 className="display text-3xl sm:text-4xl font-semibold leading-none">
@@ -315,23 +314,20 @@ export function Calculator() {
             pieza y cuánto cobrarla.
           </p>
         </div>
-        <div className="flex flex-col items-end gap-3">
-          <AuthBar />
-          <div className="flex items-end gap-2">
-            <SelectField
-              label="Moneda"
-              value={currency}
-              onChange={(v) => setCurrency(v as CurrencyCode)}
-              options={CURRENCIES.map((c) => ({ value: c.code, label: `${c.label} (${c.code})` }))}
-              className="w-52"
-            />
-            <button type="button" className="btn" onClick={reset}>
-              Reiniciar
-            </button>
-            <Link href="/guardados" className="btn">
-              Guardados{dataLoaded && !dataError ? ` (${quotes.length})` : ""}
-            </Link>
-          </div>
+        <div className="flex items-end gap-2">
+          <SelectField
+            label="Moneda"
+            value={currency}
+            onChange={(v) => setCurrency(v as CurrencyCode)}
+            options={CURRENCIES.map((c) => ({ value: c.code, label: `${c.label} (${c.code})` }))}
+            className="w-52"
+          />
+          <button type="button" className="btn" onClick={reset}>
+            Reiniciar
+          </button>
+          <Link href="/guardados" className="btn">
+            Guardados{dataLoaded && !dataError ? ` (${quotes.length})` : ""}
+          </Link>
         </div>
       </header>
 

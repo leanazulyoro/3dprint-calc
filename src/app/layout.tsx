@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Instrument_Sans } from "next/font/google";
 import "./globals.css";
+import { AuthBar } from "@/components/AuthBar";
 import { DataProvider } from "@/lib/data-context";
 
 const display = Bricolage_Grotesque({
@@ -31,7 +32,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="es-AR" className={`${display.variable} ${body.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
-        <DataProvider>{children}</DataProvider>
+        <DataProvider>
+          <div className="no-print mx-auto w-full max-w-6xl px-4 sm:px-6 pt-3 flex justify-end min-h-12">
+            <AuthBar />
+          </div>
+          {children}
+        </DataProvider>
       </body>
     </html>
   );
