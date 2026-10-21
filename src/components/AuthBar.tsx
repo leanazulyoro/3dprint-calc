@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useData } from "@/lib/data-context";
+import { ChevronIcon, WrenchIcon } from "./icons";
 
 /** Login state in the top bar: magic link in a modal, workshop switcher, sign out. */
 export function AuthBar() {
@@ -24,23 +25,32 @@ export function AuthBar() {
   if (authLoading) return <span className="text-sm text-ink-3 self-center">…</span>;
 
   if (user) {
+    const pill = "inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent-soft/70 px-3 py-1.5 text-sm font-medium text-accent-ink";
     return (
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 sm:ml-2">
         {workshops.length > 1 ? (
-          <select
-            aria-label="Taller"
-            className="field py-1.5 text-sm w-auto"
-            value={workshop?.id ?? ""}
-            onChange={(e) => selectWorkshop(e.target.value)}
-          >
-            {workshops.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
+          <label className={`${pill} relative cursor-pointer`}>
+            <WrenchIcon />
+            <span className="max-w-40 truncate">{workshop?.name ?? "Taller"}</span>
+            <ChevronIcon />
+            <select
+              aria-label="Taller"
+              className="absolute inset-0 w-full cursor-pointer opacity-0"
+              value={workshop?.id ?? ""}
+              onChange={(e) => selectWorkshop(e.target.value)}
+            >
+              {workshops.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+          </label>
         ) : (
-          <span className="text-sm text-ink-2 hidden sm:inline">{workshop?.name ?? "Sin taller"}</span>
+          <span className={pill} title="Tu taller">
+            <WrenchIcon />
+            <span className="max-w-40 truncate">{workshop?.name ?? "Sin taller"}</span>
+          </span>
         )}
         <button type="button" className="btn py-1.5" onClick={() => void signOut()} title={user.email}>
           Salir

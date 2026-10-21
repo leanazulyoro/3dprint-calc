@@ -221,7 +221,7 @@ export function SavedQuotesPage() {
       </header>
 
       {mode === "remote" && workshop ? (
-        <section className="mt-6 rounded-lg border border-line bg-ticket p-4 grid gap-4 sm:grid-cols-2" aria-label="Taller">
+        <section className="mt-6 rounded-lg border border-line bg-ticket p-4 grid gap-4 sm:grid-cols-2 items-start" aria-label="Taller">
           <div>
             <label htmlFor="workshop-name" className="block text-sm font-medium text-ink-2 mb-1.5">
               Nombre del taller
@@ -242,16 +242,15 @@ export function SavedQuotesPage() {
             </p>
           </div>
           <form
-            className="flex items-end gap-2"
             onSubmit={(e) => {
               e.preventDefault();
               void join();
             }}
           >
-            <div className="grow">
-              <label htmlFor="join-code" className="block text-sm font-medium text-ink-2 mb-1.5">
-                Unirme a otro taller
-              </label>
+            <label htmlFor="join-code" className="block text-sm font-medium text-ink-2 mb-1.5">
+              Unirme a otro taller
+            </label>
+            <div className="flex items-stretch gap-2">
               <input
                 id="join-code"
                 type="text"
@@ -260,10 +259,11 @@ export function SavedQuotesPage() {
                 value={joinCode}
                 onChange={(e) => setJoinCode(e.target.value)}
               />
+              <button type="submit" className="btn shrink-0" disabled={busy || !joinCode.trim()}>
+                Unirme
+              </button>
             </div>
-            <button type="submit" className="btn" disabled={busy || !joinCode.trim()}>
-              Unirme
-            </button>
+            <p className="mt-1.5 text-xs text-ink-3">Pedile el código a quien creó el taller.</p>
           </form>
         </section>
       ) : null}
