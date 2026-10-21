@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_INPUT,
@@ -19,7 +18,7 @@ import {
   type PrinterFields,
 } from "@/lib/calc";
 import { useData } from "@/lib/data-context";
-import { CURRENCIES, hoursLabel, money, percent, type CurrencyCode } from "@/lib/format";
+import { hoursLabel, money, percent, type CurrencyCode } from "@/lib/format";
 import { defaultPrinter, matchPrinter, printerFields, printerFromFields, type Printer } from "@/lib/printers";
 import { newQuoteId, stripPrinter, withPrinter, type Quote } from "@/lib/quotes";
 import {
@@ -33,6 +32,7 @@ import {
 } from "@/lib/storage";
 import { decodeState, encodeState } from "@/lib/url";
 import { Checkbox, NumberField, Section, SelectField, TextField } from "./fields";
+import { ResetIcon } from "./icons";
 import { Summary, buildLayers } from "./Summary";
 
 const SYMBOL: Record<CurrencyCode, string> = {
@@ -58,9 +58,8 @@ const PRINTER_KEY_OF: Record<keyof PrinterFields, "watts" | "price" | "lifeHours
 };
 
 export function Calculator() {
-  const { repo, mode, workshop } = useData();
+  const { repo, mode, workshop, currency, setCurrency, setSavedCount } = useData();
   const [input, setInput] = useState<CalcInput>(DEFAULT_INPUT);
-  const [currency, setCurrency] = useState<CurrencyCode>("ARS");
   const [loaded, setLoaded] = useState(false);
   const fromUrl = useRef(false);
   const inputRef = useRef(input);
@@ -84,7 +83,7 @@ export function Calculator() {
     if (saved.input) setInput(saved.input);
     if (saved.currency) setCurrency(saved.currency);
     setLoaded(true);
-  }, []);
+  }, [setCurrency]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -106,6 +105,7 @@ export function Calculator() {
       if (cancelled) return;
       setPrinters(ps);
       setQuotes(qs);
+      setSavedCount(qs.length);
       setDataError(null);
       setDataLoaded(true);
 
@@ -131,7 +131,7 @@ export function Calculator() {
     return () => {
       cancelled = true;
     };
-  }, [repo, loaded]);
+  }, [repo, loaded, setSavedCount]);
 
   // Printer edits persist a moment after the last keystroke.
   const pending = useRef<{ timer: number; printer: Printer } | null>(null);
@@ -257,7 +257,9 @@ export function Calculator() {
       result,
     };
     await repo.putQuote(quote);
-    setQuotes((prev) => [quote, ...prev.filter((q) => q.id !== quote.id)].sort((a, b) => b.createdAt - a.createdAt));
+    const next = [quote, ...quotes.filter((q) => q.id !== quote.id)].sort((a, b) => b.createdAt - a.createdAt);
+    setQuotes(next);
+    setSavedCount(next.length);
     setActiveQuoteId(quote.id);
     writeActiveId(quote.id);
   };
@@ -303,7 +305,7 @@ export function Calculator() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 pt-4 pb-28 lg:pb-16">
+    <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 pt-8 pb-28 lg:pb-16">
       <header className="no-print flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
           <h1 className="display text-3xl sm:text-4xl font-semibold leading-none">
@@ -314,21 +316,10 @@ export function Calculator() {
             pieza y cuánto cobrarla.
           </p>
         </div>
-        <div className="flex items-end gap-2">
-          <SelectField
-            label="Moneda"
-            value={currency}
-            onChange={(v) => setCurrency(v as CurrencyCode)}
-            options={CURRENCIES.map((c) => ({ value: c.code, label: `${c.label} (${c.code})` }))}
-            className="w-52"
-          />
-          <button type="button" className="btn" onClick={reset}>
-            Reiniciar
-          </button>
-          <Link href="/guardados" className="btn">
-            Guardados{dataLoaded && !dataError ? ` (${quotes.length})` : ""}
-          </Link>
-        </div>
+        <button type="button" className="btn gap-1.5" onClick={reset}>
+          <ResetIcon />
+          Reiniciar
+        </button>
       </header>
 
       {dataError ? (
@@ -569,7 +560,7 @@ export function Calculator() {
           </p>
         </form>
 
-        <div className="lg:sticky lg:top-6">
+        <div className="lg:sticky lg:top-[4.25rem]">
           <Summary
             input={input}
             result={result}

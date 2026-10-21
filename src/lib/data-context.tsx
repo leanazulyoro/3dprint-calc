@@ -2,6 +2,7 @@
 
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import type { CurrencyCode } from "./format";
 import { LocalRepo, RemoteRepo, type Repo } from "./repo";
 import { readWorkshopId, writeWorkshopId } from "./storage";
 import { getSupabase, supabaseConfigured } from "./supabase";
@@ -25,6 +26,12 @@ type DataContextValue = {
   joinWorkshop: (code: string) => Promise<void>;
   createWorkshop: (name: string) => Promise<void>;
   renameWorkshop: (name: string) => Promise<void>;
+  /** Display currency, owned here so the top bar and the calculator agree. */
+  currency: CurrencyCode;
+  setCurrency: (c: CurrencyCode) => void;
+  /** Saved quotes in the active store; null until a page has counted them. */
+  savedCount: number | null;
+  setSavedCount: (n: number | null) => void;
 };
 
 const DataContext = createContext<DataContextValue | null>(null);
@@ -59,6 +66,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [workshopId, setWorkshopId] = useState<string | null>(null);
+  const [currency, setCurrency] = useState<CurrencyCode>("ARS");
+  const [savedCount, setSavedCount] = useState<number | null>(null);
 
   useEffect(() => {
     if (!client) return;
@@ -120,6 +129,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       workshop,
       mode: client && user && workshop ? "remote" : "local",
       repo,
+      currency,
+      setCurrency,
+      savedCount,
+      setSavedCount,
       signIn: async (email) => {
         if (!client) throw new Error("Login no configurado");
         const { error } = await client.auth.signInWithOtp({
@@ -168,7 +181,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setWorkshops((prev) => prev.map((w) => (w.id === workshop.id ? { ...w, name: name.trim() || "Mi taller" } : w)));
       },
     }),
-    [authLoading, user, workshops, workshop, client, repo],
+    [authLoading, user, workshops, workshop, client, repo, currency, savedCount],
   );
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

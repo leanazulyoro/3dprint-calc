@@ -17,7 +17,7 @@ const when = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "
 
 export function SavedQuotesPage() {
   const router = useRouter();
-  const { repo, mode, workshop, joinWorkshop, renameWorkshop } = useData();
+  const { repo, mode, workshop, joinWorkshop, renameWorkshop, setSavedCount } = useData();
   const [quotes, setQuotes] = useState<Quote[] | null>(null);
   const [printers, setPrinters] = useState<Printer[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +32,7 @@ export function SavedQuotesPage() {
     const [ps, qs] = await Promise.all([repo.listPrinters(), repo.listQuotes()]);
     setPrinters(ps);
     setQuotes(qs);
+    setSavedCount(qs.length);
   };
 
   useEffect(() => {
@@ -42,6 +43,7 @@ export function SavedQuotesPage() {
         if (cancelled) return;
         setPrinters(ps);
         setQuotes(qs);
+        setSavedCount(qs.length);
         setError(null);
         setActiveId(readActiveId());
       })
@@ -53,7 +55,7 @@ export function SavedQuotesPage() {
     return () => {
       cancelled = true;
     };
-  }, [repo, mode]);
+  }, [repo, mode, setSavedCount]);
 
   // Logged in: anything still in this browser can be moved to the workshop.
   useEffect(() => {
@@ -84,7 +86,9 @@ export function SavedQuotesPage() {
     if (!window.confirm(`¿Borrar "${q.name}"?`)) return;
     try {
       await repo.deleteQuote(q.id);
-      setQuotes((prev) => (prev ?? []).filter((x) => x.id !== q.id));
+      const rest = (quotes ?? []).filter((x) => x.id !== q.id);
+      setQuotes(rest);
+      setSavedCount(rest.length);
       if (activeId === q.id) {
         setActiveId(null);
         writeActiveId(null);
@@ -178,7 +182,7 @@ export function SavedQuotesPage() {
   const list = quotes ?? [];
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 pt-4 pb-16">
+    <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 pt-8 pb-16">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
           <p className="text-sm">
