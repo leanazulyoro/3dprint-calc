@@ -6,9 +6,10 @@ import { useEffect, useRef, useState } from "react";
 import { DEFAULT_INPUT, MATERIALS } from "@/lib/calc";
 import { csvFilename, csvToQuotes, quotesToCsv } from "@/lib/csv";
 import { localRepo, useData } from "@/lib/data-context";
-import { hasIndexedDb, isUuid, newId } from "@/lib/db";
+import { hasIndexedDb } from "@/lib/db";
 import { hoursLabel, money } from "@/lib/format";
-import { findPrinterByName, printerFields, printerFromFields, type Printer } from "@/lib/printers";
+import { migrateQuotes } from "@/lib/migrate";
+import { printerFields, type Printer } from "@/lib/printers";
 import { withPrinter, type Quote } from "@/lib/quotes";
 import { readActiveId, writeActiveId, writePrinterId, writeState } from "@/lib/storage";
 import { AuthBar } from "./AuthBar";
@@ -140,49 +141,20 @@ export function SavedQuotesPage() {
     }
   };
 
-  // Move what this browser holds into the workshop, matching printers by name.
+  // Move what this browser holds into the workshop.
   const migrateLocal = async () => {
     if (!window.confirm(`¿Subir ${localCount} presupuestos de este navegador al taller? Se mueven: dejan de estar solo acá.`)) return;
     setBusy(true);
     setNotice("Subiendo…");
     try {
-      const [localPrinters, localQuotes] = await Promise.all([localRepo.listPrinters(), localRepo.listQuotes()]);
-      const remotePrinters = await repo.listPrinters();
-      const idMap = new Map<string, Printer>();
-      for (const lp of localPrinters) {
-        let rp = findPrinterByName(remotePrinters, lp.name);
-        if (!rp) {
-          rp = { ...lp, id: newId() };
-          await repo.putPrinter(rp);
-          remotePrinters.push(rp);
-        }
-        idMap.set(lp.id, rp);
-      }
-      let moved = 0;
-      for (const lq of localQuotes) {
-        let printer = lq.printerId ? idMap.get(lq.printerId) : undefined;
-        if (!printer && lq.legacyPrinter) {
-          const name = lq.printerName || "Impresora";
-          printer = findPrinterByName(remotePrinters, name);
-          if (!printer) {
-            printer = printerFromFields(name, lq.legacyPrinter);
-            await repo.putPrinter(printer);
-            remotePrinters.push(printer);
-          }
-        }
-        await repo.putQuote({
-          ...lq,
-          id: isUuid(lq.id) ? lq.id : newId(),
-          printerId: printer?.id ?? null,
-          printerName: printer?.name ?? lq.printerName,
-          legacyPrinter: undefined,
-        });
-        await localRepo.deleteQuote(lq.id);
-        moved++;
-      }
+      const { moved, printersCreated } = await migrateQuotes(localRepo, repo);
       setLocalCount(0);
       await reload();
-      setNotice(`Listo: ${moved} ${moved === 1 ? "presupuesto subido" : "presupuestos subidos"} al taller.`);
+      setNotice(
+        `Listo: ${moved} ${moved === 1 ? "presupuesto subido" : "presupuestos subidos"} al taller${
+          printersCreated ? `, ${printersCreated} ${printersCreated === 1 ? "impresora nueva" : "impresoras nuevas"}` : ""
+        }.`,
+      );
     } catch (e) {
       setNotice(e instanceof Error ? `No se pudo subir: ${e.message}` : "No se pudo subir.");
     } finally {

@@ -1,6 +1,6 @@
 /** Thin promise wrapper over IndexedDB for the local (offline) repository. */
 
-const DB_NAME = "calc3d";
+export const DB_NAME = "calc3d";
 const VERSION = 2;
 
 export const STORES = { quotes: "quotes", printers: "printers" } as const;
@@ -10,9 +10,9 @@ export function hasIndexedDb(): boolean {
   return typeof indexedDB !== "undefined";
 }
 
-function openDb(): Promise<IDBDatabase> {
+function openDb(dbName: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, VERSION);
+    const req = indexedDB.open(dbName, VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORES.quotes)) {
@@ -32,8 +32,9 @@ export async function run<T>(
   store: StoreName,
   mode: IDBTransactionMode,
   op: (store: IDBObjectStore) => IDBRequest<T>,
+  dbName = DB_NAME,
 ): Promise<T> {
-  const db = await openDb();
+  const db = await openDb(dbName);
   try {
     return await new Promise<T>((resolve, reject) => {
       const tx = db.transaction(store, mode);

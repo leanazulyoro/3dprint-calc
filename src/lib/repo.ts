@@ -1,11 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { STORES, isUuid, run } from "./db";
+import { DB_NAME, STORES, isUuid, run } from "./db";
 import type { Printer } from "./printers";
 import { normalizeQuote, type Quote } from "./quotes";
 
 /** Same operations whether data lives in this browser or in a shared workshop. */
 export interface Repo {
   readonly key: string;
+  /** Stable id for the starter printer in this store. */
+  readonly defaultPrinterId: string;
   listQuotes(): Promise<Quote[]>;
   putQuote(q: Quote): Promise<void>;
   deleteQuote(id: string): Promise<void>;
@@ -18,27 +20,32 @@ const byCreatedDesc = (a: { createdAt: number }, b: { createdAt: number }) => b.
 const byCreatedAsc = (a: { createdAt: number }, b: { createdAt: number }) => a.createdAt - b.createdAt;
 
 export class LocalRepo implements Repo {
-  readonly key = "local";
+  readonly key: string;
+  readonly defaultPrinterId = "00000000-0000-4000-8000-000000000001";
+
+  constructor(private dbName = DB_NAME) {
+    this.key = dbName === DB_NAME ? "local" : `local:${dbName}`;
+  }
 
   async listQuotes(): Promise<Quote[]> {
-    const all = await run<unknown[]>(STORES.quotes, "readonly", (s) => s.getAll());
+    const all = await run<unknown[]>(STORES.quotes, "readonly", (s) => s.getAll(), this.dbName);
     return all.map(normalizeQuote).sort(byCreatedDesc);
   }
   async putQuote(q: Quote) {
-    await run(STORES.quotes, "readwrite", (s) => s.put(q));
+    await run(STORES.quotes, "readwrite", (s) => s.put(q), this.dbName);
   }
   async deleteQuote(id: string) {
-    await run(STORES.quotes, "readwrite", (s) => s.delete(id));
+    await run(STORES.quotes, "readwrite", (s) => s.delete(id), this.dbName);
   }
   async listPrinters(): Promise<Printer[]> {
-    const all = await run<Printer[]>(STORES.printers, "readonly", (s) => s.getAll());
+    const all = await run<Printer[]>(STORES.printers, "readonly", (s) => s.getAll(), this.dbName);
     return all.sort(byCreatedAsc);
   }
   async putPrinter(p: Printer) {
-    await run(STORES.printers, "readwrite", (s) => s.put(p));
+    await run(STORES.printers, "readwrite", (s) => s.put(p), this.dbName);
   }
   async deletePrinter(id: string) {
-    await run(STORES.printers, "readwrite", (s) => s.delete(id));
+    await run(STORES.printers, "readwrite", (s) => s.delete(id), this.dbName);
   }
 }
 
@@ -74,13 +81,15 @@ function fail(ctx: string, error: { message: string } | null): never {
 
 export class RemoteRepo implements Repo {
   readonly key: string;
+  /** The workshop id is a uuid nobody else uses as a printer id. */
+  readonly defaultPrinterId: string;
 
   constructor(
     private client: SupabaseClient,
     private workshopId: string,
-    private printerNames: () => Map<string, string> = () => new Map(),
   ) {
     this.key = `remote:${workshopId}`;
+    this.defaultPrinterId = workshopId;
   }
 
   async listQuotes(): Promise<Quote[]> {
@@ -90,7 +99,6 @@ export class RemoteRepo implements Repo {
       .eq("workshop_id", this.workshopId)
       .order("created_at", { ascending: false });
     if (error) fail("No se pudieron leer los presupuestos", error);
-    const names = this.printerNames();
     return (data as QuoteRow[]).map((r) =>
       normalizeQuote({
         id: r.id,
@@ -99,7 +107,7 @@ export class RemoteRepo implements Repo {
         name: r.name,
         currency: r.currency,
         printerId: r.printer_id,
-        printerName: r.printer_id ? (names.get(r.printer_id) ?? "") : "",
+        printerName: "",
         input: r.input,
         result: r.result,
       }),

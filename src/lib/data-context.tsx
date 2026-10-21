@@ -102,12 +102,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [client, user]);
 
   const workshop = useMemo(() => workshops.find((w) => w.id === workshopId) ?? null, [workshops, workshopId]);
-  const printerNames = useMemo(() => new Map<string, string>(), []);
 
+  // Keyed on ids, so a rename or a refetch of the workshop list keeps the same repo.
+  const userId = user?.id ?? null;
+  const activeWorkshopId = workshop?.id ?? null;
   const repo = useMemo<Repo>(() => {
-    if (client && user && workshop) return new RemoteRepo(client, workshop.id, () => printerNames);
+    if (client && userId && activeWorkshopId) return new RemoteRepo(client, activeWorkshopId);
     return local;
-  }, [client, user, workshop, printerNames]);
+  }, [client, userId, activeWorkshopId]);
 
   const value = useMemo<DataContextValue>(
     () => ({

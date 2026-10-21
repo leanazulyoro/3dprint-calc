@@ -99,7 +99,7 @@ export function Calculator() {
     (async () => {
       let ps = await repo.listPrinters();
       if (ps.length === 0) {
-        const p = defaultPrinter();
+        const p = defaultPrinter(repo.defaultPrinterId);
         await repo.putPrinter(p);
         ps = [p];
       }

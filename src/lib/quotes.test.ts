@@ -5,9 +5,10 @@ import { CSV_COLUMNS, csvToQuotes, parseCsv, quoteToRow, quotesToCsv } from "./c
 import { newId } from "./db";
 import { defaultPrinter, matchPrinter, printerFields, printerFromFields, type Printer } from "./printers";
 import { normalizeQuote, stripPrinter, withPrinter, type Quote } from "./quotes";
+import { migrateQuotes } from "./migrate";
 import { LocalRepo } from "./repo";
 
-const printer: Printer = { ...defaultPrinter(1_700_000_000_000), id: "11111111-1111-4111-8111-111111111111" };
+const printer: Printer = defaultPrinter("11111111-1111-4111-8111-111111111111", 1_700_000_000_000);
 
 function makeQuote(over: Partial<Quote> = {}, inputOver: Partial<Quote["input"]> = {}): Quote {
   const input = stripPrinter({ ...DEFAULT_INPUT, name: "Llavero; \"test\"", grams: 120, ...inputOver });
@@ -182,5 +183,46 @@ describe("csv import", () => {
     expect(bad.errors.map((e) => e.line)).toEqual([2, 3]);
     expect(csvToQuotes("nombre;gramos\nx;1\n").errors[0].message).toContain("horas_impresion");
     expect(csvToQuotes("").errors).toHaveLength(1);
+  });
+});
+
+describe("migrateQuotes", () => {
+  it("moves quotes, reuses printers by name or numbers, creates the rest", async () => {
+    const from = new LocalRepo("calc3d-test-from");
+    const to = new LocalRepo("calc3d-test-to");
+    const remoteDefault = defaultPrinter(to.defaultPrinterId);
+    await to.putPrinter(remoteDefault);
+
+    const localDefault = defaultPrinter(from.defaultPrinterId);
+    const ender = printerFromFields("Ender 3", { watts: 130, printerPrice: 500000, printerLifeHours: 6000 });
+    const unused = printerFromFields("Sin uso", { watts: 1, printerPrice: 1, printerLifeHours: 1 });
+    for (const p of [localDefault, ender, unused]) await from.putPrinter(p);
+
+    const byId = makeQuote({ id: "legacy-id", printerId: localDefault.id, printerName: localDefault.name });
+    const byEnder = makeQuote({ printerId: ender.id, printerName: ender.name });
+    const legacy = { ...makeQuote({ printerId: null, printerName: "" }), legacyPrinter: printerFields(remoteDefault) };
+    for (const q of [byId, byEnder, legacy]) await from.putQuote(q);
+
+    const r = await migrateQuotes(from, to);
+    expect(r).toEqual({ moved: 3, printersCreated: 1 });
+
+    const printers = await to.listPrinters();
+    expect(printers.map((p) => p.name).sort()).toEqual(["Bambu Lab A1", "Ender 3"]);
+
+    const quotes = await to.listQuotes();
+    expect(quotes).toHaveLength(3);
+    const defaultId = remoteDefault.id;
+    expect(quotes.filter((q) => q.printerId === defaultId)).toHaveLength(2);
+    expect(quotes.find((q) => q.printerName === "Ender 3")?.printerId).toBe(printers.find((p) => p.name === "Ender 3")?.id);
+    expect(quotes.every((q) => /^[0-9a-f-]{36}$/.test(q.id))).toBe(true);
+    expect(quotes.every((q) => q.legacyPrinter === undefined)).toBe(true);
+    expect(await from.listQuotes()).toEqual([]);
+  });
+
+  it("is idempotent for the default printer: same id twice is one row", async () => {
+    const repo = new LocalRepo("calc3d-test-default");
+    await repo.putPrinter(defaultPrinter(repo.defaultPrinterId));
+    await repo.putPrinter(defaultPrinter(repo.defaultPrinterId));
+    expect(await repo.listPrinters()).toHaveLength(1);
   });
 });

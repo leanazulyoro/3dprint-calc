@@ -15,10 +15,10 @@ export function printerFields(p: Printer): PrinterFields {
   return { watts: p.watts, printerPrice: p.price, printerLifeHours: p.lifeHours };
 }
 
-export function printerFromFields(name: string, f: PrinterFields, now = Date.now()): Printer {
+export function printerFromFields(name: string, f: PrinterFields, now = Date.now(), id = newId()): Printer {
   const n = (v: number) => (Number.isFinite(v) ? v : 0);
   return {
-    id: newId(),
+    id,
     name: name.trim() || "Impresora",
     watts: n(f.watts),
     price: n(f.printerPrice),
@@ -28,8 +28,12 @@ export function printerFromFields(name: string, f: PrinterFields, now = Date.now
   };
 }
 
-export function defaultPrinter(now = Date.now()): Printer {
-  return printerFromFields(DEFAULT_PRINTER_NAME, DEFAULT_INPUT, now);
+/**
+ * The starter printer. Its id is fixed per store so that creating it twice
+ * (two loads racing on an empty workshop) upserts the same row.
+ */
+export function defaultPrinter(id: string, now = Date.now()): Printer {
+  return printerFromFields(DEFAULT_PRINTER_NAME, DEFAULT_INPUT, now, id);
 }
 
 /** A printer whose numbers equal the given ones (shared links carry numbers, not ids). */
