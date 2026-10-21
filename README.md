@@ -24,9 +24,7 @@ Setup del proyecto Supabase: pegar `supabase/schema.sql` en el SQL Editor (tabla
 
 ## Deploy
 
-Sitio estático en GitHub Pages: https://leanazulyoro.github.io/3dprint-calc/
-
-Cada push a `main` corre `.github/workflows/pages.yml` (tests, `next build` con `output: export` y `basePath=/3dprint-calc`) y publica `out/`.
+https://3dprint-calc.vercel.app/ en Vercel (plan Hobby), conectado al repo: cada push a `main` despliega; cada PR tiene su preview. Las variables de Supabase las carga la integración Supabase → Vercel, que también suma los dominios de preview a las Redirect URLs de Auth. `keepalive.yml` sigue en GitHub Actions.
 
 ## Desarrollo
 

@@ -37,7 +37,6 @@ type DataContextValue = {
 const DataContext = createContext<DataContextValue | null>(null);
 
 const local = new LocalRepo();
-const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
 function toUser(session: Session | null): User | null {
   return session?.user ? { id: session.user.id, email: session.user.email ?? "" } : null;
@@ -137,7 +136,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (!client) throw new Error("Login no configurado");
         const { error } = await client.auth.signInWithOtp({
           email: email.trim(),
-          options: { emailRedirectTo: `${window.location.origin}${BASE_PATH}/` },
+          options: { emailRedirectTo: `${window.location.origin}/` },
         });
         if (error) throw new Error(error.message);
       },
