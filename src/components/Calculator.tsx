@@ -19,7 +19,7 @@ import {
 } from "@/lib/calc";
 import { useData } from "@/lib/data-context";
 import { hoursLabel, money, percent, type CurrencyCode } from "@/lib/format";
-import { parseListingPrices } from "@/lib/ml";
+import type { MlFee } from "@/lib/ml";
 import { defaultPrinter, matchPrinter, printerFields, printerFromFields, type Printer } from "@/lib/printers";
 import { newQuoteId, stripPrinter, withPrinter, type Quote } from "@/lib/quotes";
 import {
@@ -193,9 +193,10 @@ export function Calculator() {
       const qs = new URLSearchParams({ price: String(Math.max(1, Math.round(price))) });
       if (mlCategory.trim()) qs.set("category", mlCategory.trim().toUpperCase());
       const r = await fetch(`/api/ml-fees?${qs}`);
-      const data = (await r.json()) as { error?: string; fees?: unknown };
+      const data = (await r.json()) as { error?: string; fees?: MlFee[] };
       if (!r.ok) throw new Error(data.error ?? `Error ${r.status}`);
-      const fees = parseListingPrices(data.fees);
+      // The route already normalized Mercado Libre's response.
+      const fees = Array.isArray(data.fees) ? data.fees.filter((f) => f.saleFee !== null && f.saleFee > 0) : [];
       const fee = fees.find((f) => f.id === "gold_special") ?? fees[0];
       if (!fee) throw new Error("Mercado Libre no devolvió comisiones para ese precio");
       const pct =
