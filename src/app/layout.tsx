@@ -3,6 +3,7 @@ import { Bricolage_Grotesque, Instrument_Sans } from "next/font/google";
 import "./globals.css";
 import { TopBar } from "@/components/TopBar";
 import { DataProvider } from "@/lib/data-context";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const display = Bricolage_Grotesque({
   variable: "--font-display",
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <TopBar />
           {children}
         </DataProvider>
+        <SpeedInsights />
       </body>
     </html>
   );
