@@ -14,7 +14,7 @@ Calculá el costo real de una pieza impresa en 3D y cuánto cobrarla. Pensada pa
 - **IVA** (opcional): alícuota configurable sobre el precio sugerido.
 - **Mercado Libre** (opcional, solo ARS): calcula a cuánto publicar para que, descontados los cargos, te quede el precio sugerido. Cargo por vender (%), cuotas, costo fijo por unidad según tramo de precio y 21% de IVA sobre los cargos. Tabla oficial de ML, septiembre 2026; revisala si cambia.
 
-La API de Mercado Libre ya no es pública (todo `api.mercadolibre.com` responde 403 sin token), así que los porcentajes van en una tabla editable. Una versión con consulta en vivo vía `listing_prices` y token de app quedó en el historial (`git show 866fed2 -- src/app/api`); requiere un servidor, no funciona en GitHub Pages.
+La API de Mercado Libre no es pública (todo `api.mercadolibre.com` responde 403 sin token), así que los porcentajes van en una tabla editable. Con `ML_CLIENT_ID` y `ML_CLIENT_SECRET` de una app de developers.mercadolibre.com.ar en el entorno del server, aparece el botón "Consultar comisión en Mercado Libre": `/api/ml-fees` pide un token de app (`client_credentials`) y consulta `sites/MLA/listing_prices` para el precio y la categoría dados, y setea el cargo por vender de la publicación Clásica.
 
 ## Sync entre dispositivos (Supabase)
 
