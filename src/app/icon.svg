@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Calculadora 3D</title>
+  <rect width="512" height="512" rx="112" fill="#1F3BE8"/>
+  <!-- hotend: heater block and nozzle tip -->
+  <rect x="186" y="84" width="140" height="48" rx="12" fill="#fff"/>
+  <path d="M226 132h60l-18 40h-24z" fill="#fff"/>
+  <!-- layers: the one being printed is hot -->
+  <rect x="180" y="196" width="152" height="40" rx="10" fill="#F2A516"/>
+  <rect x="156" y="252" width="200" height="40" rx="10" fill="#fff"/>
+  <rect x="132" y="308" width="248" height="40" rx="10" fill="#fff"/>
+  <rect x="108" y="364" width="296" height="40" rx="10" fill="#fff"/>
+</svg>
