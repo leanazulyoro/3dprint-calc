@@ -3,6 +3,8 @@ import { decodeState, encodeState, type AppState } from "./url";
 /** localStorage: the last thing calculated and which saved quote it came from. */
 const STATE_KEY = "calc3d:v1";
 const ACTIVE_KEY = "calc3d:active";
+const PRINTER_KEY = "calc3d:printer";
+const WORKSHOP_KEY = "calc3d:workshop";
 
 function get(key: string): string | null {
   try {
@@ -40,4 +42,20 @@ export function readActiveId(): string | null {
 
 export function writeActiveId(id: string | null) {
   set(ACTIVE_KEY, id);
+}
+
+export function readPrinterId(): string | null {
+  return get(PRINTER_KEY);
+}
+
+export function writePrinterId(id: string | null) {
+  set(PRINTER_KEY, id);
+}
+
+export function readWorkshopId(): string | null {
+  return get(WORKSHOP_KEY);
+}
+
+export function writeWorkshopId(id: string | null) {
+  set(WORKSHOP_KEY, id);
 }

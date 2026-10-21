@@ -19,6 +19,7 @@ const KEYS: Record<keyof CalcInput, string> = {
   laborRate: "lr",
   laborHours: "lh",
   extras: "ex",
+  extrasNote: "exn",
   extrasMarkup: "exm",
   multiplier: "x",
   quantity: "q",
@@ -48,8 +49,8 @@ export function decodeState(params: URLSearchParams): Partial<AppState> {
   for (const [field, key] of Object.entries(KEYS) as [keyof CalcInput, string][]) {
     const raw = params.get(key);
     if (raw === null) continue;
-    if (field === "name") {
-      input.name = raw.slice(0, 80);
+    if (field === "name" || field === "extrasNote") {
+      input[field] = raw.slice(0, 120);
     } else if (field === "material") {
       if (MATERIALS.some((m) => m.id === raw)) input.material = raw as MaterialId;
     } else if (field === "mlInstallments") {

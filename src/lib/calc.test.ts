@@ -133,11 +133,12 @@ describe("Mercado Libre", () => {
 
 describe("url state", () => {
   it("round-trips non-default fields and omits defaults", () => {
-    const qs = encodeState({ input: { ...DEFAULT_INPUT, grams: 120, name: "Llavero" }, currency: "USD" });
-    expect(qs).toBe("n=Llavero&g=120&c=USD");
+    const qs = encodeState({ input: { ...DEFAULT_INPUT, grams: 120, name: "Llavero", extrasNote: "Aro y cadena" }, currency: "USD" });
+    expect(qs).toBe("n=Llavero&g=120&exn=Aro+y+cadena&c=USD");
     const back = decodeState(new URLSearchParams(qs));
     expect(back.input?.grams).toBe(120);
     expect(back.input?.name).toBe("Llavero");
+    expect(back.input?.extrasNote).toBe("Aro y cadena");
     expect(back.input?.material).toBe("PLA");
     expect(back.currency).toBe("USD");
   });

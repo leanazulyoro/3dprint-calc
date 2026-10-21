@@ -98,6 +98,7 @@ export type CalcInput = {
   laborRate: number; // per hour
   laborHours: number;
   extras: number;
+  extrasNote: string; // what the extras are, e.g. "Aro y cadena"
   extrasMarkup: number; // percent added on top of extras, not part of the margin
   multiplier: number;
   quantity: number;
@@ -124,6 +125,7 @@ export const DEFAULT_INPUT: CalcInput = {
   laborRate: 0,
   laborHours: 0,
   extras: 0,
+  extrasNote: "",
   extrasMarkup: 0,
   multiplier: 4,
   quantity: 1,
@@ -134,6 +136,12 @@ export const DEFAULT_INPUT: CalcInput = {
   mlInstallments: "none",
   mlFeesVat: true,
 };
+
+/** The printer's own numbers: live in the printers table, not in each quote. */
+export const PRINTER_FIELDS = ["watts", "printerPrice", "printerLifeHours"] as const;
+export type PrinterFields = Pick<CalcInput, (typeof PRINTER_FIELDS)[number]>;
+export type QuoteInput = Omit<CalcInput, keyof PrinterFields>;
+export const DEFAULT_PRINTER_NAME = "Bambu Lab A1";
 
 export type CalcResult = {
   printHours: number;

@@ -16,6 +16,12 @@ Calculá el costo real de una pieza impresa en 3D y cuánto cobrarla. Pensada pa
 
 La API de Mercado Libre ya no es pública (todo `api.mercadolibre.com` responde 403 sin token), así que los porcentajes van en una tabla editable. Una versión con consulta en vivo vía `listing_prices` y token de app quedó en el historial (`git show 866fed2 -- src/app/api`); requiere un servidor, no funciona en GitHub Pages.
 
+## Sync entre dispositivos (Supabase)
+
+Sin configurar, todo queda en el navegador (IndexedDB). Con `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` aparece "Iniciar sesión" (magic link por email). Cada usuario arranca con un taller propio; presupuestos e impresoras se comparten entre los miembros del taller. Para sumar a alguien, pasale el código del taller (en `/guardados`) y que lo cargue en "Unirme a otro taller". Lo que había guardado en el navegador se puede subir al taller desde la misma página.
+
+Setup del proyecto Supabase: pegar `supabase/schema.sql` en el SQL Editor (tablas, RLS, triggers y la RPC `join_workshop`), habilitar Email en Auth y agregar la URL del sitio a las Redirect URLs. `keepalive.yml` hace una consulta diaria para que el proyecto Free no se pause.
+
 ## Deploy
 
 Sitio estático en GitHub Pages: https://leanazulyoro.github.io/3dprint-calc/

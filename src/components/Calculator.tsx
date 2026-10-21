@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_INPUT,
   MARGIN_PRESETS,
@@ -15,12 +16,23 @@ import {
   type CalcInput,
   type MaterialId,
   type MlInstallments,
+  type PrinterFields,
 } from "@/lib/calc";
+import { useData } from "@/lib/data-context";
 import { CURRENCIES, hoursLabel, money, percent, type CurrencyCode } from "@/lib/format";
-import Link from "next/link";
-import { hasIndexedDb, listQuotes, newQuoteId, putQuote, type Quote } from "@/lib/quotes";
-import { clearState, readActiveId, readState, writeActiveId, writeState } from "@/lib/storage";
+import { defaultPrinter, matchPrinter, printerFields, printerFromFields, type Printer } from "@/lib/printers";
+import { newQuoteId, stripPrinter, withPrinter, type Quote } from "@/lib/quotes";
+import {
+  clearState,
+  readActiveId,
+  readPrinterId,
+  readState,
+  writeActiveId,
+  writePrinterId,
+  writeState,
+} from "@/lib/storage";
 import { decodeState, encodeState } from "@/lib/url";
+import { AuthBar } from "./AuthBar";
 import { Checkbox, NumberField, Section, SelectField, TextField } from "./fields";
 import { Summary, buildLayers } from "./Summary";
 
@@ -35,19 +47,39 @@ const SYMBOL: Record<CurrencyCode, string> = {
   COP: "$",
 };
 
+const NEW_PRINTER = "__new__";
+const NEW_PRINTER_NAME = "Nueva impresora";
+
+const touch = (p: Printer, patch: Partial<Printer>): Printer => ({ ...p, ...patch, updatedAt: Date.now() });
+
+const PRINTER_KEY_OF: Record<keyof PrinterFields, "watts" | "price" | "lifeHours"> = {
+  watts: "watts",
+  printerPrice: "price",
+  printerLifeHours: "lifeHours",
+};
+
 export function Calculator() {
+  const { repo, mode, workshop } = useData();
   const [input, setInput] = useState<CalcInput>(DEFAULT_INPUT);
   const [currency, setCurrency] = useState<CurrencyCode>("ARS");
   const [loaded, setLoaded] = useState(false);
-  const [presetId, setPresetId] = useState("a1");
+  const fromUrl = useRef(false);
+  const inputRef = useRef(input);
+  useEffect(() => {
+    inputRef.current = input;
+  }, [input]);
+
+  const [printers, setPrinters] = useState<Printer[]>([]);
+  const [printerId, setPrinterId] = useState<string | null>(null);
   const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [quotesAvailable, setQuotesAvailable] = useState(true);
-  const [quotesLoaded, setQuotesLoaded] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const [dataError, setDataError] = useState<string | null>(null);
   const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null);
 
   // Hydrate from a shared link first, then from this browser's saved values.
   useEffect(() => {
     let saved = decodeState(new URLSearchParams(window.location.search));
+    fromUrl.current = Boolean(saved.input);
     if (!saved.input) saved = readState();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration from URL/storage
     if (saved.input) setInput(saved.input);
@@ -60,26 +92,71 @@ export function Calculator() {
     writeState({ input, currency });
   }, [input, currency, loaded]);
 
-  // Saved quotes, plus which one the form was last showing.
+  // Printers and quotes from whichever store is active (browser or workshop).
   useEffect(() => {
+    if (!loaded) return;
     let cancelled = false;
-    const load = hasIndexedDb() ? listQuotes() : Promise.reject(new Error("Sin IndexedDB"));
-    load
-      .then((list) => {
-        if (cancelled) return;
-        setQuotes(list);
-        setQuotesLoaded(true);
-        const active = readActiveId();
-        if (active && list.some((q) => q.id === active)) setActiveQuoteId(active);
-        else writeActiveId(null);
-      })
-      .catch(() => {
-        if (!cancelled) setQuotesAvailable(false);
-      });
+    (async () => {
+      let ps = await repo.listPrinters();
+      if (ps.length === 0) {
+        const p = defaultPrinter();
+        await repo.putPrinter(p);
+        ps = [p];
+      }
+      const qs = await repo.listQuotes();
+      if (cancelled) return;
+      setPrinters(ps);
+      setQuotes(qs);
+      setDataError(null);
+      setDataLoaded(true);
+
+      const active = readActiveId();
+      setActiveQuoteId(active && qs.some((q) => q.id === active) ? active : null);
+
+      // Shared link: keep its numbers unless one of my printers matches them.
+      // Otherwise the remembered printer, then one matching the form, then the first.
+      const current = inputRef.current;
+      const stored = readPrinterId();
+      const chosen = fromUrl.current
+        ? matchPrinter(ps, current)
+        : (ps.find((p) => p.id === stored) ?? matchPrinter(ps, current) ?? ps[0]);
+      setPrinterId(chosen?.id ?? null);
+      writePrinterId(chosen?.id ?? null);
+      if (chosen) setInput((prev) => withPrinter(prev, printerFields(chosen)));
+    })().catch((e: unknown) => {
+      if (!cancelled) {
+        setDataError(e instanceof Error ? e.message : "No se pudieron cargar los datos");
+        setDataLoaded(true);
+      }
+    });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [repo, loaded]);
+
+  // Printer edits persist a moment after the last keystroke.
+  const pending = useRef<{ timer: number; printer: Printer } | null>(null);
+  const flushPrinter = useCallback(async () => {
+    const p = pending.current;
+    if (!p) return;
+    window.clearTimeout(p.timer);
+    pending.current = null;
+    await repo.putPrinter(p.printer);
+  }, [repo]);
+  const schedulePersist = useCallback(
+    (printer: Printer) => {
+      if (pending.current) window.clearTimeout(pending.current.timer);
+      const timer = window.setTimeout(() => {
+        pending.current = null;
+        repo.putPrinter(printer).catch((e: unknown) => {
+          setDataError(e instanceof Error ? e.message : "No se pudo guardar la impresora");
+        });
+      }, 500);
+      pending.current = { timer, printer };
+    },
+    [repo],
+  );
+  useEffect(() => () => void flushPrinter(), [flushPrinter]);
 
   // Mercado Libre's fixed fees are in pesos: only offer it with ARS.
   const mlAvailable = currency === "ARS";
@@ -92,34 +169,102 @@ export function Calculator() {
   const set = <K extends keyof CalcInput>(key: K) => (value: CalcInput[K]) =>
     setInput((prev) => ({ ...prev, [key]: value }));
 
-  const preset = PRINTER_PRESETS.find((p) => p.id === presetId);
-  const shownPreset = preset && preset.watts === input.watts ? preset.id : "";
+  const printer = printers.find((p) => p.id === printerId) ?? null;
   const isPreset = MARGIN_PRESETS.some((m) => m.value === input.multiplier);
 
+  const updatePrinter = (patch: Partial<Printer>) => {
+    if (!printer) return;
+    const next = touch(printer, patch);
+    setPrinters((prev) => prev.map((p) => (p.id === next.id ? next : p)));
+    schedulePersist(next);
+  };
+
+  const setPrinterField = (key: keyof PrinterFields, value: number) => {
+    set(key)(value);
+    if (printer) updatePrinter({ [PRINTER_KEY_OF[key]]: Number.isFinite(value) ? value : 0 });
+  };
+
+  const selectPrinter = async (id: string) => {
+    await flushPrinter();
+    if (id === NEW_PRINTER) {
+      const p = printerFromFields(NEW_PRINTER_NAME, DEFAULT_INPUT);
+      await repo.putPrinter(p);
+      setPrinters((prev) => [...prev, p]);
+      id = p.id;
+    }
+    const chosen = id === NEW_PRINTER ? null : (printers.find((p) => p.id === id) ?? null);
+    const target = chosen ?? (await repo.listPrinters()).find((p) => p.id === id) ?? null;
+    if (!target) return;
+    setPrinterId(target.id);
+    writePrinterId(target.id);
+    setInput((prev) => withPrinter(prev, printerFields(target)));
+  };
+
+  const deletePrinter = async () => {
+    if (!printer || printers.length <= 1) return;
+    if (!window.confirm(`¿Borrar la impresora "${printer.name}"? Los presupuestos guardados con ella quedan.`)) return;
+    await flushPrinter();
+    await repo.deletePrinter(printer.id);
+    const rest = printers.filter((p) => p.id !== printer.id);
+    setPrinters(rest);
+    const next = rest[0];
+    setPrinterId(next.id);
+    writePrinterId(next.id);
+    setInput((prev) => withPrinter(prev, printerFields(next)));
+  };
+
+  const applyPreset = (presetId: string) => {
+    const p = PRINTER_PRESETS.find((x) => x.id === presetId);
+    if (!p) return;
+    set("watts")(p.watts);
+    if (printer) {
+      const generic =
+        !printer.name.trim() ||
+        printer.name === NEW_PRINTER_NAME ||
+        PRINTER_PRESETS.some((x) => x.label === printer.name);
+      updatePrinter({ watts: p.watts, ...(generic ? { name: p.label } : {}) });
+    }
+  };
+  const shownPreset = PRINTER_PRESETS.find((p) => p.label === printer?.name && p.watts === input.watts)?.id ?? "";
+
   const saveQuote = async (asNew: boolean) => {
-    if (!quotesAvailable) throw new Error("Este navegador no permite guardar");
+    if (!dataLoaded || dataError) throw new Error(dataError ?? "Todavía cargando");
+    await flushPrinter();
+    let pid = printerId;
+    let pname = printer?.name ?? "";
+    if (!pid) {
+      // Numbers came from a shared link and match none of my printers: keep them as one.
+      const p = printerFromFields("Impresora del link", input);
+      await repo.putPrinter(p);
+      setPrinters((prev) => [...prev, p]);
+      setPrinterId(p.id);
+      writePrinterId(p.id);
+      pid = p.id;
+      pname = p.name;
+    }
     const existing = asNew ? undefined : quotes.find((q) => q.id === activeQuoteId);
     const now = Date.now();
     const quote: Quote = {
       id: existing?.id ?? newQuoteId(),
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
-      name: input.name.trim() || `Presupuesto ${new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(now)}`,
+      name:
+        input.name.trim() ||
+        `Presupuesto ${new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(now)}`,
       currency,
-      input,
+      printerId: pid,
+      printerName: pname,
+      input: stripPrinter(input),
       result,
     };
-    await putQuote(quote);
-    setQuotes((prev) => {
-      const rest = prev.filter((q) => q.id !== quote.id);
-      return [quote, ...rest].sort((a, b) => b.createdAt - a.createdAt);
-    });
+    await repo.putQuote(quote);
+    setQuotes((prev) => [quote, ...prev.filter((q) => q.id !== quote.id)].sort((a, b) => b.createdAt - a.createdAt));
     setActiveQuoteId(quote.id);
     writeActiveId(quote.id);
   };
 
   const reset = () => {
-    setInput(DEFAULT_INPUT);
+    setInput(printer ? withPrinter(DEFAULT_INPUT, printerFields(printer)) : DEFAULT_INPUT);
     setCurrency("ARS");
     setActiveQuoteId(null);
     writeActiveId(null);
@@ -136,9 +281,9 @@ export function Calculator() {
     const fmt = (v: number) => money(v, currency);
     const lines = [
       `Presupuesto impresión 3D${input.name.trim() ? `: ${input.name.trim()}` : ""}`,
-      `${input.material}, ${input.grams || 0} g, ${hoursLabel(result.printHours)}`,
+      `${input.material}, ${input.grams || 0} g, ${hoursLabel(result.printHours)}${printer ? `, ${printer.name}` : ""}`,
       "",
-      ...buildLayers(result, input.failureRate)
+      ...buildLayers(result, input.failureRate, input.extrasNote)
         .filter((l) => l.value > 0 || (l.key !== "labor" && l.key !== "extras"))
         .map((l) => `${l.label}: ${fmt(l.value)}`),
       `Costo real: ${fmt(result.cost)}`,
@@ -170,22 +315,31 @@ export function Calculator() {
             pieza y cuánto cobrarla.
           </p>
         </div>
-        <div className="flex items-end gap-2">
-          <SelectField
-            label="Moneda"
-            value={currency}
-            onChange={(v) => setCurrency(v as CurrencyCode)}
-            options={CURRENCIES.map((c) => ({ value: c.code, label: `${c.label} (${c.code})` }))}
-            className="w-52"
-          />
-          <button type="button" className="btn" onClick={reset}>
-            Reiniciar
-          </button>
-          <Link href="/guardados" className="btn">
-            Guardados{quotesLoaded ? ` (${quotes.length})` : ""}
-          </Link>
+        <div className="flex flex-col items-end gap-3">
+          <AuthBar />
+          <div className="flex items-end gap-2">
+            <SelectField
+              label="Moneda"
+              value={currency}
+              onChange={(v) => setCurrency(v as CurrencyCode)}
+              options={CURRENCIES.map((c) => ({ value: c.code, label: `${c.label} (${c.code})` }))}
+              className="w-52"
+            />
+            <button type="button" className="btn" onClick={reset}>
+              Reiniciar
+            </button>
+            <Link href="/guardados" className="btn">
+              Guardados{dataLoaded && !dataError ? ` (${quotes.length})` : ""}
+            </Link>
+          </div>
         </div>
       </header>
+
+      {dataError ? (
+        <p role="alert" className="no-print mt-4 rounded-md border border-line bg-ticket px-3 py-2 text-sm text-ink">
+          {dataError}
+        </p>
+      ) : null}
 
       <div className="mt-8 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] gap-10 lg:gap-12 items-start">
         <form className="no-print min-w-0" onSubmit={(e) => e.preventDefault()}>
@@ -212,20 +366,56 @@ export function Calculator() {
             </div>
           </Section>
 
-          <Section title="Impresora y energía" lead="Elegí un modelo para autocompletar el consumo, o cargá el tuyo.">
+          <Section
+            title="Impresora y energía"
+            lead={
+              mode === "remote"
+                ? `Las impresoras se comparten en el taller${workshop ? ` "${workshop.name}"` : ""}. Lo que edites acá queda guardado en la impresora.`
+                : "Tus impresoras quedan guardadas en este navegador. Lo que edites acá queda guardado en la impresora."
+            }
+          >
+            <SelectField
+              label="Impresora"
+              value={printerId ?? ""}
+              onChange={(v) => void selectPrinter(v)}
+              placeholder={printerId ? undefined : "Del link compartido (sin guardar)"}
+              options={[
+                ...printers.map((p) => ({ value: p.id, label: p.name })),
+                { value: NEW_PRINTER, label: "+ Nueva impresora" },
+              ]}
+            />
+            {printer ? (
+              <div className="flex items-end gap-2">
+                <TextField
+                  label="Nombre de la impresora"
+                  value={printer.name}
+                  onChange={(name) => updatePrinter({ name })}
+                  className="grow"
+                />
+                {printers.length > 1 ? (
+                  <button type="button" className="btn" onClick={() => void deletePrinter()} aria-label={`Borrar impresora ${printer.name}`}>
+                    Borrar
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
             <SelectField
               label="Modelo"
               value={shownPreset}
-              onChange={(id) => {
-                const p = PRINTER_PRESETS.find((x) => x.id === id);
-                setPresetId(id);
-                if (p) set("watts")(p.watts);
-              }}
-              placeholder="Elegí tu impresora (opcional)"
+              onChange={applyPreset}
+              placeholder="Autocompletar consumo (opcional)"
               options={PRINTER_PRESETS.map((p) => ({ value: p.id, label: `${p.label}, ${p.watts} W` }))}
               hint="Consumo promedio imprimiendo. Valores aproximados."
             />
-            <NumberField label="Consumo" value={input.watts} onChange={set("watts")} unit="W" />
+            <NumberField label="Consumo" value={input.watts} onChange={(v) => setPrinterField("watts", v)} unit="W" />
+            <NumberField label="Precio de la impresora" value={input.printerPrice} onChange={(v) => setPrinterField("printerPrice", v)} unit={sym} />
+            <NumberField
+              label="Vida útil"
+              value={input.printerLifeHours}
+              onChange={(v) => setPrinterField("printerLifeHours", v)}
+              unit="h"
+              hint={`Horas de impresión antes de reemplazarla. Desgaste: ${money(result.wearPerHour, currency)} por hora.`}
+            />
             <NumberField
               label="Precio de la electricidad"
               value={input.kwhPrice}
@@ -240,14 +430,6 @@ export function Calculator() {
               unit="%"
               hint="Cubre impresiones falladas, purgas y calibraciones."
             />
-            <NumberField label="Precio de la impresora" value={input.printerPrice} onChange={set("printerPrice")} unit={sym} />
-            <NumberField
-              label="Vida útil"
-              value={input.printerLifeHours}
-              onChange={set("printerLifeHours")}
-              unit="h"
-              hint={`Horas de impresión antes de reemplazarla. Desgaste: ${money(result.wearPerHour, currency)} por hora.`}
-            />
           </Section>
 
           <Section
@@ -257,6 +439,12 @@ export function Calculator() {
             <NumberField label="Valor de tu hora" value={input.laborRate} onChange={set("laborRate")} unit={`${sym}/h`} />
             <NumberField label="Horas de trabajo" value={input.laborHours} onChange={set("laborHours")} unit="h" />
             <NumberField label="Extras" value={input.extras} onChange={set("extras")} unit={sym} hint="Lo que pagaste por los insumos." />
+            <TextField
+              label="Qué incluyen los extras"
+              value={input.extrasNote}
+              onChange={set("extrasNote")}
+              placeholder="Aro y cadena"
+            />
             <NumberField
               label="Recargo sobre extras"
               value={input.extrasMarkup}
@@ -380,8 +568,8 @@ export function Calculator() {
           </Section>
 
           <p className="mt-10 text-xs text-ink-3 max-w-prose">
-            Los valores iniciales son orientativos para Argentina. Se guardan en este navegador; el
-            link compartible lleva todos los datos.
+            Los valores iniciales son orientativos para Argentina. El formulario recuerda lo último que
+            calculaste; el link compartible lleva todos los datos.
           </p>
         </form>
 
@@ -394,7 +582,7 @@ export function Calculator() {
             onCopyLink={() => navigator.clipboard.writeText(shareUrl())}
             onSave={() => saveQuote(false)}
             onSaveAsNew={activeQuoteId ? () => saveQuote(true) : null}
-            canSave={quotesAvailable}
+            canSave={dataLoaded && !dataError}
           />
         </div>
       </div>

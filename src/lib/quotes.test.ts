@@ -2,59 +2,105 @@ import "fake-indexeddb/auto";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_INPUT, calculate } from "./calc";
 import { CSV_COLUMNS, csvToQuotes, parseCsv, quoteToRow, quotesToCsv } from "./csv";
-import { deleteQuote, listQuotes, newQuoteId, putQuote, type Quote } from "./quotes";
+import { newId } from "./db";
+import { defaultPrinter, matchPrinter, printerFields, printerFromFields, type Printer } from "./printers";
+import { normalizeQuote, stripPrinter, withPrinter, type Quote } from "./quotes";
+import { LocalRepo } from "./repo";
 
-function makeQuote(over: Partial<Quote> = {}): Quote {
-  const input = { ...DEFAULT_INPUT, name: "Llavero; \"test\"", grams: 120 };
+const printer: Printer = { ...defaultPrinter(1_700_000_000_000), id: "11111111-1111-4111-8111-111111111111" };
+
+function makeQuote(over: Partial<Quote> = {}, inputOver: Partial<Quote["input"]> = {}): Quote {
+  const input = stripPrinter({ ...DEFAULT_INPUT, name: "Llavero; \"test\"", grams: 120, ...inputOver });
   return {
-    id: newQuoteId(),
+    id: newId(),
     createdAt: 1_760_000_000_000,
     updatedAt: 1_760_000_000_000,
     name: input.name,
     currency: "ARS",
+    printerId: printer.id,
+    printerName: printer.name,
     input,
-    result: calculate(input),
+    result: calculate(withPrinter(input, printerFields(printer))),
     ...over,
   };
 }
 
-describe("quotes store", () => {
-  it("saves, lists newest first, updates and deletes", async () => {
+describe("local repo", () => {
+  const repo = new LocalRepo();
+
+  it("saves, lists newest first, updates and deletes quotes", async () => {
     const a = makeQuote({ createdAt: 1 });
     const b = makeQuote({ createdAt: 2 });
-    await putQuote(a);
-    await putQuote(b);
-    expect((await listQuotes()).map((q) => q.id)).toEqual([b.id, a.id]);
+    await repo.putQuote(a);
+    await repo.putQuote(b);
+    expect((await repo.listQuotes()).map((q) => q.id)).toEqual([b.id, a.id]);
 
-    await putQuote({ ...a, name: "Renombrado" });
-    expect((await listQuotes()).find((q) => q.id === a.id)?.name).toBe("Renombrado");
+    await repo.putQuote({ ...a, name: "Renombrado" });
+    expect((await repo.listQuotes()).find((q) => q.id === a.id)?.name).toBe("Renombrado");
 
-    await deleteQuote(a.id);
-    await deleteQuote(b.id);
-    expect(await listQuotes()).toEqual([]);
+    await repo.deleteQuote(a.id);
+    await repo.deleteQuote(b.id);
+    expect(await repo.listQuotes()).toEqual([]);
   });
 
-  it("generates distinct ids", () => {
-    expect(newQuoteId()).not.toBe(newQuoteId());
+  it("stores printers oldest first", async () => {
+    const p1 = printerFromFields("Ender", DEFAULT_INPUT, 2);
+    const p2 = printerFromFields("A1", DEFAULT_INPUT, 1);
+    await repo.putPrinter(p1);
+    await repo.putPrinter(p2);
+    expect((await repo.listPrinters()).map((p) => p.name)).toEqual(["A1", "Ender"]);
+    await repo.deletePrinter(p1.id);
+    await repo.deletePrinter(p2.id);
+    expect(await repo.listPrinters()).toEqual([]);
+  });
+
+  it("generates uuids", () => {
+    expect(newId()).toMatch(/^[0-9a-f-]{36}$/);
+    expect(newId()).not.toBe(newId());
   });
 });
 
-describe("csv", () => {
-  it("has one value per column", () => {
-    expect(quoteToRow(makeQuote())).toHaveLength(CSV_COLUMNS.length);
+describe("quotes and printers", () => {
+  it("strips printer numbers from the stored input and puts them back on load", () => {
+    const stored = stripPrinter(DEFAULT_INPUT);
+    expect("watts" in stored).toBe(false);
+    const back = withPrinter(stored, printerFields(printer));
+    expect(back.watts).toBe(printer.watts);
+    expect(back.printerPrice).toBe(printer.price);
+  });
+
+  it("keeps the numbers of quotes saved before printers had a table", () => {
+    const old = normalizeQuote({ id: "x", createdAt: 1, name: "viejo", currency: "ARS", input: { ...DEFAULT_INPUT, watts: 99 }, result: {} });
+    expect(old.printerId).toBeNull();
+    expect(old.legacyPrinter?.watts).toBe(99);
+    expect("watts" in old.input).toBe(false);
+  });
+
+  it("matches a printer by its numbers", () => {
+    expect(matchPrinter([printer], DEFAULT_INPUT)?.id).toBe(printer.id);
+    expect(matchPrinter([printer], { ...DEFAULT_INPUT, watts: 1 })).toBeUndefined();
+  });
+});
+
+describe("csv export", () => {
+  it("has one value per column and resolves the printer", () => {
+    const row = quoteToRow(makeQuote(), [printer]);
+    expect(row).toHaveLength(CSV_COLUMNS.length);
+    expect(row[CSV_COLUMNS.indexOf("impresora")]).toBe(printer.name);
+    expect(row[CSV_COLUMNS.indexOf("consumo_w")]).toBe(printer.watts);
   });
 
   it("uses semicolons, decimal commas, quoting and a BOM", () => {
-    const csv = quotesToCsv([makeQuote()]);
+    const csv = quotesToCsv([makeQuote()], [printer]);
     const [header, row] = csv.split("\r\n");
-    expect(header.startsWith("﻿fecha;nombre;moneda")).toBe(true);
+    expect(header.startsWith("\uFEFFfecha;nombre;moneda")).toBe(true);
     expect(row).toContain('"Llavero; ""test"""');
     expect(row).toContain(";120,00;");
     expect(row).not.toMatch(/\d\.\d/);
   });
 
   it("leaves IVA and ML columns empty when disabled", () => {
-    const row = quoteToRow(makeQuote());
+    const row = quoteToRow(makeQuote(), [printer]);
     const at = (name: (typeof CSV_COLUMNS)[number]) => row[CSV_COLUMNS.indexOf(name)];
     expect(at("iva")).toBe(false);
     expect(at("precio_con_iva")).toBeNull();
@@ -73,11 +119,10 @@ describe("csv import", () => {
     ]);
   });
 
-  it("round-trips an export: same inputs, same ids", () => {
-    const q = makeQuote({
-      name: "Lámpara; LED",
-      input: {
-        ...DEFAULT_INPUT,
+  it("round-trips an export: same inputs, same ids, same printer", () => {
+    const q = makeQuote(
+      { name: "Lámpara; LED" },
+      {
         name: "Lámpara; LED",
         material: "PETG",
         grams: 250,
@@ -86,6 +131,7 @@ describe("csv import", () => {
         laborRate: 5000,
         laborHours: 1.5,
         extras: 6000,
+        extrasNote: "Tira LED",
         extrasMarkup: 15,
         multiplier: 3.5,
         quantity: 2,
@@ -95,17 +141,27 @@ describe("csv import", () => {
         mlInstallments: "same3",
         mlFeesVat: false,
       },
-    });
-    q.result = calculate(q.input);
-    const { quotes, errors } = csvToQuotes(quotesToCsv([q]));
+    );
+    const { quotes, printers, errors } = csvToQuotes(quotesToCsv([q], [printer]), [printer]);
     expect(errors).toEqual([]);
+    expect(printers).toEqual([]);
     expect(quotes).toHaveLength(1);
     expect(quotes[0].id).toBe(q.id);
+    expect(quotes[0].printerId).toBe(printer.id);
     expect(quotes[0].name).toBe("Lámpara; LED");
-    expect(quotes[0].currency).toBe("ARS");
     expect(quotes[0].createdAt).toBe(q.createdAt);
     expect(quotes[0].input).toEqual(q.input);
     expect(quotes[0].result.price).toBeCloseTo(q.result.price);
+  });
+
+  it("creates unknown printers from the row's numbers", () => {
+    const csv = "material;gramos;horas_impresion;impresora;consumo_w;precio_impresora;vida_util_h\nPLA;10;1;Ender 3;130;500000;6000\nPLA;20;2;ender 3;1;1;1\n";
+    const { quotes, printers } = csvToQuotes(csv, [printer]);
+    expect(printers).toHaveLength(1);
+    expect(printers[0].name).toBe("Ender 3");
+    expect(printers[0].watts).toBe(130);
+    expect(quotes.map((q) => q.printerId)).toEqual([printers[0].id, printers[0].id]);
+    expect(quotes[1].result.energy).toBeCloseTo(0.13 * 2 * DEFAULT_INPUT.kwhPrice);
   });
 
   it("accepts comma separator, dot decimals and dd/mm/yyyy dates", () => {

@@ -17,20 +17,20 @@ type Props = {
   canSave: boolean;
 };
 
-export function buildLayers(r: CalcResult, failureRate: number): Layer[] {
+export function buildLayers(r: CalcResult, failureRate: number, extrasNote = ""): Layer[] {
   return [
     { key: "material", label: "Material", value: r.material, color: "var(--l-material)" },
     { key: "energy", label: "Electricidad", value: r.energy, color: "var(--l-energy)" },
     { key: "wear", label: "Desgaste de impresora", value: r.wear, color: "var(--l-wear)" },
     { key: "failure", label: `Margen de fallos ${percent(failureRate)}`, value: r.failure, color: "var(--l-failure)" },
     { key: "labor", label: "Mano de obra", value: r.labor, color: "var(--l-labor)" },
-    { key: "extras", label: "Extras", value: r.extras, color: "var(--l-extras)" },
+    { key: "extras", label: extrasNote.trim() ? `Extras: ${extrasNote.trim()}` : "Extras", value: r.extras, color: "var(--l-extras)" },
   ];
 }
 
 export function Summary({ input, result: r, currency, onCopyText, onCopyLink, onSave, onSaveAsNew, canSave }: Props) {
   const [flash, setFlash] = useState<string | null>(null);
-  const layers = buildLayers(r, input.failureRate);
+  const layers = buildLayers(r, input.failureRate, input.extrasNote);
   const material = MATERIALS.find((m) => m.id === input.material)?.label ?? input.material;
   const qty = Math.max(1, Math.floor(input.quantity) || 1);
   const fmt = (v: number) => money(v, currency);

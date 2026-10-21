@@ -6,9 +6,11 @@ import {
   type CalcInput,
   type MaterialId,
   type MlInstallments,
+  type PrinterFields,
 } from "./calc";
 import { isCurrency, type CurrencyCode } from "./format";
-import { newQuoteId, type Quote } from "./quotes";
+import { findPrinterByName, printerFields, printerFromFields, type Printer } from "./printers";
+import { newQuoteId, stripPrinter, withPrinter, type Quote } from "./quotes";
 
 /**
  * CSV for Excel and Sheets in es-AR: semicolon separator, decimal comma,
@@ -38,6 +40,7 @@ export const CSV_COLUMNS = [
   "gramos",
   "horas_impresion",
   "precio_filamento_kg",
+  "impresora",
   "consumo_w",
   "precio_kwh",
   "precio_impresora",
@@ -46,6 +49,7 @@ export const CSV_COLUMNS = [
   "valor_hora",
   "horas_trabajo",
   "extras",
+  "extras_detalle",
   "recargo_extras_pct",
   "margen",
   "cantidad",
@@ -75,10 +79,17 @@ export const CSV_COLUMNS = [
 
 type Column = (typeof CSV_COLUMNS)[number];
 
-export function quoteToRow(q: Quote): (string | number | boolean | null)[] {
+function resolvePrinter(q: Quote, printers: Printer[]): { name: string; fields: PrinterFields | null } {
+  const p = q.printerId ? printers.find((x) => x.id === q.printerId) : undefined;
+  if (p) return { name: p.name, fields: printerFields(p) };
+  return { name: q.printerName, fields: q.legacyPrinter ?? null };
+}
+
+export function quoteToRow(q: Quote, printers: Printer[] = []): (string | number | boolean | null)[] {
   const i = q.input;
   const r = q.result;
   const ml = r.ml;
+  const printer = resolvePrinter(q, printers);
   return [
     stamp(q.createdAt),
     q.name,
@@ -87,14 +98,16 @@ export function quoteToRow(q: Quote): (string | number | boolean | null)[] {
     i.grams,
     r.printHours,
     i.pricePerKg,
-    i.watts,
+    printer.name,
+    printer.fields?.watts ?? null,
     i.kwhPrice,
-    i.printerPrice,
-    i.printerLifeHours,
+    printer.fields?.printerPrice ?? null,
+    printer.fields?.printerLifeHours ?? null,
     i.failureRate,
     i.laborRate,
     i.laborHours,
     i.extras,
+    i.extrasNote ?? "",
     i.extrasMarkup,
     i.multiplier,
     i.quantity,
@@ -123,8 +136,8 @@ export function quoteToRow(q: Quote): (string | number | boolean | null)[] {
   ];
 }
 
-export function quotesToCsv(quotes: Quote[]): string {
-  const lines = [CSV_COLUMNS.join(SEP), ...quotes.map((q) => quoteToRow(q).map(cell).join(SEP))];
+export function quotesToCsv(quotes: Quote[], printers: Printer[] = []): string {
+  const lines = [CSV_COLUMNS.join(SEP), ...quotes.map((q) => quoteToRow(q, printers).map(cell).join(SEP))];
   return "﻿" + lines.join("\r\n") + "\r\n";
 }
 
@@ -137,7 +150,7 @@ export function csvFilename(date = new Date()): string {
 
 /** RFC 4180-style parser; separator is whatever the header uses. */
 export function parseCsv(text: string): string[][] {
-  const src = text.replace(/^\uFEFF/, "");
+  const src = text.replace(/^﻿/, "");
   const firstLine = src.split(/\r?\n/, 1)[0] ?? "";
   const sep = (firstLine.match(/;/g)?.length ?? 0) >= (firstLine.match(/,/g)?.length ?? 0) ? ";" : ",";
 
@@ -211,27 +224,31 @@ function toDate(raw: string | undefined, fallback: number): number {
 
 export type ImportResult = {
   quotes: Quote[];
+  /** Printers that did not exist yet and must be saved before the quotes. */
+  printers: Printer[];
   errors: { line: number; message: string }[];
 };
 
 /**
  * Rebuild quotes from a CSV exported here (or edited in a spreadsheet).
  * Results are recomputed with the current formula; rows carrying an `id`
- * keep it so re-importing updates instead of duplicating.
+ * keep it so re-importing updates instead of duplicating. Printers are
+ * matched by name; unknown ones are created from the row's numbers.
  */
-export function csvToQuotes(text: string, now = Date.now()): ImportResult {
+export function csvToQuotes(text: string, existingPrinters: Printer[] = [], now = Date.now()): ImportResult {
   const rows = parseCsv(text);
   const errors: ImportResult["errors"] = [];
-  if (rows.length === 0) return { quotes: [], errors: [{ line: 1, message: "El archivo está vacío" }] };
+  if (rows.length === 0) return { quotes: [], printers: [], errors: [{ line: 1, message: "El archivo está vacío" }] };
 
   const header = rows[0].map((h) => h.trim().toLowerCase());
   const col = (name: Column) => header.indexOf(name);
   const required: Column[] = ["material", "gramos", "horas_impresion"];
   const missing = required.filter((c) => col(c) < 0);
   if (missing.length > 0) {
-    return { quotes: [], errors: [{ line: 1, message: `Faltan columnas: ${missing.join(", ")}` }] };
+    return { quotes: [], printers: [], errors: [{ line: 1, message: `Faltan columnas: ${missing.join(", ")}` }] };
   }
 
+  const newPrinters: Printer[] = [];
   const quotes: Quote[] = [];
   rows.slice(1).forEach((cells, idx) => {
     const line = idx + 2;
@@ -260,6 +277,18 @@ export function csvToQuotes(text: string, now = Date.now()): ImportResult {
       ML_INSTALLMENTS.find((o) => o.id === installmentsRaw || o.label === installmentsRaw)?.id ??
       DEFAULT_INPUT.mlInstallments;
 
+    const fields: PrinterFields = {
+      watts: num("consumo_w", DEFAULT_INPUT.watts),
+      printerPrice: num("precio_impresora", DEFAULT_INPUT.printerPrice),
+      printerLifeHours: num("vida_util_h", DEFAULT_INPUT.printerLifeHours),
+    };
+    const printerName = (get("impresora") ?? "").trim();
+    let printer = findPrinterByName(existingPrinters, printerName) ?? findPrinterByName(newPrinters, printerName);
+    if (!printer) {
+      printer = printerFromFields(printerName || "Impresora importada", fields, now);
+      newPrinters.push(printer);
+    }
+
     const input: CalcInput = {
       ...DEFAULT_INPUT,
       name: (get("nombre") ?? "").trim(),
@@ -268,14 +297,12 @@ export function csvToQuotes(text: string, now = Date.now()): ImportResult {
       hours,
       minutes,
       pricePerKg: num("precio_filamento_kg", DEFAULT_INPUT.pricePerKg),
-      watts: num("consumo_w", DEFAULT_INPUT.watts),
       kwhPrice: num("precio_kwh", DEFAULT_INPUT.kwhPrice),
-      printerPrice: num("precio_impresora", DEFAULT_INPUT.printerPrice),
-      printerLifeHours: num("vida_util_h", DEFAULT_INPUT.printerLifeHours),
       failureRate: num("margen_fallos_pct", DEFAULT_INPUT.failureRate),
       laborRate: num("valor_hora", 0),
       laborHours: num("horas_trabajo", 0),
       extras: num("extras", 0),
+      extrasNote: (get("extras_detalle") ?? "").trim(),
       extrasMarkup: num("recargo_extras_pct", 0),
       multiplier: num("margen", DEFAULT_INPUT.multiplier),
       quantity: num("cantidad", 1),
@@ -285,6 +312,7 @@ export function csvToQuotes(text: string, now = Date.now()): ImportResult {
       mlCommission: num("ml_cargo_pct", DEFAULT_INPUT.mlCommission),
       mlInstallments: installments as MlInstallments,
       mlFeesVat: get("ml_iva_cargos") === undefined ? DEFAULT_INPUT.mlFeesVat : toBool(get("ml_iva_cargos")),
+      ...printerFields(printer),
     };
     const currencyRaw = (get("moneda") ?? "ARS").trim().toUpperCase();
     const currency: CurrencyCode = isCurrency(currencyRaw) ? currencyRaw : "ARS";
@@ -298,10 +326,12 @@ export function csvToQuotes(text: string, now = Date.now()): ImportResult {
       updatedAt: now,
       name: input.name || `Importado ${line - 1}`,
       currency,
-      input,
-      result: calculate(input),
+      printerId: printer.id,
+      printerName: printer.name,
+      input: stripPrinter(input),
+      result: calculate(withPrinter(stripPrinter(input), printerFields(printer))),
     });
   });
 
-  return { quotes, errors };
+  return { quotes, printers: newPrinters, errors };
 }
