@@ -6,13 +6,16 @@ import { ChevronIcon, SettingsIcon, WrenchIcon } from "./icons";
 import { SettingsDialog } from "./SettingsDialog";
 import { Skeleton } from "./Skeleton";
 
-/** Login state in the top bar: magic link in a modal, workshop switcher, sign out. */
+/** Login state in the top bar: magic link (or its code) in a modal, workshop switcher, sign out. */
 export function AuthBar() {
-  const { configured, ready, user, workshop, signIn, signOut } = useData();
+  const { configured, ready, user, workshop, signIn, verifyCode, signOut } = useData();
   const [open, setOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  // Where the email went; the dialog then asks for its code.
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
 
@@ -55,6 +58,13 @@ export function AuthBar() {
   }
 
   if (user) {
+    // Logged in from the code, or from the link in another tab: the next login starts over.
+    if (open || sentTo) {
+      setOpen(false);
+      setSentTo(null);
+      setCode("");
+      setError(null);
+    }
     return (
       <div className="flex min-w-0 items-center gap-1.5 sm:gap-2 sm:ml-2">
         <button
@@ -78,12 +88,25 @@ export function AuthBar() {
 
   const send = async () => {
     setSending(true);
-    setStatus(null);
+    setError(null);
     try {
       await signIn(email);
-      setStatus({ ok: true, text: `Te mandamos un link a ${email.trim()}. Abrilo desde este dispositivo o cualquier otro; podés cerrar esta ventana.` });
+      setSentTo(email.trim());
     } catch (e) {
-      setStatus({ ok: false, text: e instanceof Error ? e.message : "No se pudo enviar el link" });
+      setError(e instanceof Error ? e.message : "No se pudo enviar el link");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const verify = async () => {
+    if (!sentTo) return;
+    setSending(true);
+    setError(null);
+    try {
+      await verifyCode(sentTo, code);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo verificar el código");
     } finally {
       setSending(false);
     }
@@ -118,7 +141,7 @@ export function AuthBar() {
           className="p-6"
           onSubmit={(e) => {
             e.preventDefault();
-            void send();
+            void (sentTo ? verify() : send());
           }}
         >
           <h2 id="login-title" className="display text-xl font-semibold leading-tight">
@@ -128,34 +151,70 @@ export function AuthBar() {
             Sin contraseña: te mandamos un link por email. Con sesión, los presupuestos e impresoras se comparten
             entre tus dispositivos y con tu taller.
           </p>
-          <label htmlFor="login-email" className="block text-sm font-medium text-ink-2 mt-5 mb-1.5">
-            Email
-          </label>
-          <input
-            id="login-email"
-            type="email"
-            required
-            autoComplete="email"
-            autoFocus
-            className="field"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="vos@ejemplo.com"
-          />
-          {status ? (
-            <p role="status" className={`mt-3 text-sm ${status.ok ? "text-ok" : "text-ink"}`}>
-              {status.text}
+          {sentTo ? (
+            <>
+              <p role="status" className="mt-5 text-sm text-ok">
+                Te mandamos un mail a {sentTo}. Abrí el link desde cualquier dispositivo, o escribí acá el código que
+                trae (en la app instalada en iPhone, usá el código).
+              </p>
+              <label htmlFor="login-code" className="block text-sm font-medium text-ink-2 mt-4 mb-1.5">
+                Código
+              </label>
+              <input
+                id="login-code"
+                required
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                autoFocus
+                pattern="[0-9]{6,10}"
+                maxLength={10}
+                className="field num tracking-widest"
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                placeholder="123456"
+              />
+              <button
+                type="button"
+                className="mt-2 text-sm text-accent-ink underline underline-offset-2"
+                onClick={() => {
+                  setSentTo(null);
+                  setCode("");
+                  setError(null);
+                }}
+              >
+                Usar otro email
+              </button>
+            </>
+          ) : (
+            <>
+              <label htmlFor="login-email" className="block text-sm font-medium text-ink-2 mt-5 mb-1.5">
+                Email
+              </label>
+              <input
+                id="login-email"
+                type="email"
+                required
+                autoComplete="email"
+                autoFocus
+                className="field"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="vos@ejemplo.com"
+              />
+            </>
+          )}
+          {error ? (
+            <p role="alert" className="mt-3 text-sm text-ink">
+              {error}
             </p>
           ) : null}
           <div className="mt-5 flex justify-end gap-2">
             <button type="button" className="btn" onClick={() => setOpen(false)}>
-              {status?.ok ? "Cerrar" : "Cancelar"}
+              {sentTo ? "Cerrar" : "Cancelar"}
             </button>
-            {status?.ok ? null : (
-              <button type="submit" className="btn btn-primary" disabled={sending}>
-                {sending ? "Enviando…" : "Enviar link"}
-              </button>
-            )}
+            <button type="submit" className="btn btn-primary" disabled={sending}>
+              {sentTo ? (sending ? "Verificando…" : "Entrar") : sending ? "Enviando…" : "Enviar link"}
+            </button>
           </div>
         </form>
       </dialog>

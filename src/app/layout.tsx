@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Instrument_Sans } from "next/font/google";
 import "./globals.css";
+import { OfflineBanner } from "@/components/OfflineBanner";
+import { ServiceWorker } from "@/components/ServiceWorker";
 import { TopBar } from "@/components/TopBar";
 import { DataProvider } from "@/lib/data-context";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -20,6 +22,7 @@ export const metadata: Metadata = {
   title: "Calculadora de impresión 3D",
   description:
     "Calculá el costo real de una impresión 3D y cuánto cobrarla: material, electricidad, desgaste, fallos, mano de obra y margen. Pensada para Argentina, funciona con cualquier moneda.",
+  appleWebApp: { capable: true, title: "Calc 3D", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
@@ -35,8 +38,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         <DataProvider>
           <TopBar />
+          <OfflineBanner />
           {children}
         </DataProvider>
+        <ServiceWorker />
         <SpeedInsights />
       </body>
     </html>

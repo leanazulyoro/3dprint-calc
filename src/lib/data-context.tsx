@@ -23,6 +23,8 @@ type DataContextValue = {
   mode: "local" | "remote";
   repo: Repo;
   signIn: (email: string) => Promise<void>;
+  /** The code in the login email, for an installed app the link can't open into (iOS). */
+  verifyCode: (email: string, code: string) => Promise<void>;
   signOut: () => Promise<void>;
   selectWorkshop: (id: string) => void;
   joinWorkshop: (code: string) => Promise<void>;
@@ -186,6 +188,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
           options: { emailRedirectTo: `${window.location.origin}/` },
         });
         if (error) throw new Error(error.message);
+      },
+      verifyCode: async (email, code) => {
+        if (!client) throw new Error("Login no configurado");
+        const { error } = await client.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: "email" });
+        if (error) throw new Error(/expired|invalid/i.test(error.message) ? "Código inválido o vencido" : error.message);
       },
       signOut: async () => {
         if (!client) return;
