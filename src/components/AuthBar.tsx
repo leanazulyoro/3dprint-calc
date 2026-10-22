@@ -28,25 +28,25 @@ export function AuthBar() {
   if (!ready) {
     return (
       <div className="flex items-center gap-2 sm:ml-2" aria-busy="true" aria-label="Cargando sesión">
-        <Skeleton className="h-8 w-28 rounded-full" />
-        <Skeleton className="h-8 w-16" />
+        <Skeleton className="h-8 w-20 sm:w-28 rounded-full" />
+        <Skeleton className="h-8 w-14" />
       </div>
     );
   }
 
   if (user) {
     return (
-      <div className="flex flex-wrap items-center gap-2 sm:ml-2">
+      <div className="flex min-w-0 items-center gap-1.5 sm:gap-2 sm:ml-2">
         <button
           type="button"
-          className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent-soft/70 px-3 py-1.5 text-sm font-medium text-accent-ink hover:bg-accent-soft"
+          className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-accent/30 bg-accent-soft/70 px-2.5 sm:px-3 py-1.5 text-sm font-medium text-accent-ink hover:bg-accent-soft"
           aria-haspopup="dialog"
           aria-expanded={workshopOpen}
           onClick={() => setWorkshopOpen(true)}
         >
-          <WrenchIcon />
-          <span className="max-w-40 truncate">{workshop?.name ?? "Sin taller"}</span>
-          <ChevronIcon />
+          <WrenchIcon className="shrink-0" />
+          <span className="max-w-20 sm:max-w-40 truncate">{workshop?.name ?? "Sin taller"}</span>
+          <ChevronIcon className="shrink-0" />
         </button>
         <WorkshopDialog open={workshopOpen} onClose={() => setWorkshopOpen(false)} />
         <button type="button" className="btn py-1.5" onClick={() => void signOut()} title={user.email}>
@@ -71,8 +71,9 @@ export function AuthBar() {
 
   return (
     <>
-      <button type="button" className="btn btn-primary py-1.5" onClick={() => setOpen(true)}>
-        Iniciar sesión
+      <button type="button" className="btn btn-primary py-1.5 px-2.5 sm:px-3" onClick={() => setOpen(true)}>
+        <span className="sm:hidden">Entrar</span>
+        <span className="hidden sm:inline">Iniciar sesión</span>
       </button>
       <dialog
         ref={dialog}

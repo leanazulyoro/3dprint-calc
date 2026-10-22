@@ -168,6 +168,48 @@ export function SavedQuotesPage() {
 
   const list = quotes ?? [];
 
+  const describe = (q: Quote) => {
+    const r = q.result;
+    return {
+      r,
+      material: MATERIALS.find((m) => m.id === q.input.material)?.label ?? q.input.material,
+      final: r.ml ? r.ml.listTotal : r.priceWithVat,
+      tag: r.ml ? "en ML" : q.input.vatEnabled ? "con IVA" : null,
+      printerName: (q.printerId && printers.find((p) => p.id === q.printerId)?.name) || q.printerName,
+      active: q.id === activeId,
+      stale: isStale(q),
+    };
+  };
+
+  const modelLine = (q: Quote, className: string) =>
+    q.input.modelRef?.trim() ? (
+      isUrlLike(q.input.modelRef) ? (
+        <a
+          href={toHref(q.input.modelRef)}
+          target="_blank"
+          rel="noreferrer"
+          className={`block truncate text-xs font-normal text-accent-ink hover:underline ${className}`}
+          title={q.input.modelRef}
+        >
+          modelo en {hostOf(q.input.modelRef)} ↗
+        </a>
+      ) : (
+        <span className={`block truncate text-xs font-normal text-ink-3 ${className}`} title={q.input.modelRef}>
+          {q.input.modelRef.trim()}
+        </span>
+      )
+    ) : null;
+
+  const staleTag = (q: Quote) => (
+    <span
+      className="mt-1 inline-flex items-center gap-1 rounded-full bg-[color:var(--l-energy)]/15 px-2 py-0.5 text-xs font-medium text-ink"
+      title={`Sin cambios hace ${daysSinceSaved(q)} días`}
+    >
+      <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[color:var(--l-energy)]" />
+      Desactualizado, verificar precios de filamentos
+    </span>
+  );
+
   return (
     <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 pt-8 pb-16">
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -258,7 +300,53 @@ export function SavedQuotesPage() {
           y tocá &ldquo;Guardar presupuesto&rdquo;.
         </p>
       ) : (
-        <div className="mt-8 overflow-x-auto rounded-lg border border-line bg-ticket">
+        <>
+        <div className="sm:hidden mt-6 flex flex-col gap-3">
+          {list.map((q) => {
+            const { r, material, final, tag, printerName, active, stale } = describe(q);
+            return (
+              <article
+                key={q.id}
+                className={`rounded-lg border bg-ticket p-4 ${active ? "border-accent/50 bg-accent-soft/40" : "border-line"}`}
+                aria-label={q.name}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium" title={q.input.description?.trim() || undefined}>
+                      {q.name}
+                    </p>
+                    <p className="num mt-0.5 text-xs text-ink-3">
+                      {when.format(q.createdAt)}
+                      {active ? ", en el form" : ""}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="num font-semibold">{money(final, q.currency)}</p>
+                    <p className="text-xs text-ink-3">
+                      {tag ? `${tag}, ` : ""}costo {money(r.cost, q.currency)}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-2 text-sm text-ink-2">
+                  {material}, {q.input.grams} g, {hoursLabel(r.printHours)}
+                  {q.input.quantity > 1 ? `, ${q.input.quantity} u.` : ""}
+                  {printerName ? `, ${printerName}` : ""}
+                </p>
+                {modelLine(q, "mt-1")}
+                {stale ? staleTag(q) : null}
+                <div className="mt-3 flex gap-2">
+                  <button type="button" className="btn btn-primary grow py-2.5" onClick={() => load(q)}>
+                    Cargar
+                  </button>
+                  <button type="button" className="btn py-2.5 px-4" aria-label={`Borrar ${q.name}`} onClick={() => remove(q)}>
+                    Borrar
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+        <div className="hidden sm:block mt-8 overflow-x-auto rounded-lg border border-line bg-ticket">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-ink-2 border-b border-line">
@@ -274,13 +362,7 @@ export function SavedQuotesPage() {
             </thead>
             <tbody>
               {list.map((q) => {
-                const r = q.result;
-                const material = MATERIALS.find((m) => m.id === q.input.material)?.label ?? q.input.material;
-                const final = r.ml ? r.ml.listTotal : r.priceWithVat;
-                const tag = r.ml ? "en ML" : q.input.vatEnabled ? "con IVA" : null;
-                const printerName = (q.printerId && printers.find((p) => p.id === q.printerId)?.name) || q.printerName;
-                const active = q.id === activeId;
-                const stale = isStale(q);
+                const { r, material, final, tag, printerName, active, stale } = describe(q);
                 return (
                   <tr
                     key={q.id}
@@ -292,32 +374,8 @@ export function SavedQuotesPage() {
                         {q.name}
                         {active ? <span className="ml-1.5 text-xs font-normal text-ink-3">en el form</span> : null}
                       </span>
-                      {q.input.modelRef?.trim() ? (
-                        isUrlLike(q.input.modelRef) ? (
-                          <a
-                            href={toHref(q.input.modelRef)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="block truncate text-xs font-normal text-accent-ink hover:underline"
-                            title={q.input.modelRef}
-                          >
-                            modelo en {hostOf(q.input.modelRef)} ↗
-                          </a>
-                        ) : (
-                          <span className="block truncate text-xs font-normal text-ink-3" title={q.input.modelRef}>
-                            {q.input.modelRef.trim()}
-                          </span>
-                        )
-                      ) : null}
-                      {stale ? (
-                        <span
-                          className="mt-1 inline-flex items-center gap-1 rounded-full bg-[color:var(--l-energy)]/15 px-2 py-0.5 text-xs font-medium text-ink"
-                          title={`Sin cambios hace ${daysSinceSaved(q)} días`}
-                        >
-                          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[color:var(--l-energy)]" />
-                          Desactualizado, verificar precios de filamentos
-                        </span>
-                      ) : null}
+                      {modelLine(q, "")}
+                      {stale ? staleTag(q) : null}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-ink-2">
                       {material}, {q.input.grams} g, {hoursLabel(r.printHours)}
@@ -348,6 +406,7 @@ export function SavedQuotesPage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );
