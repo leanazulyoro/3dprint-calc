@@ -160,7 +160,7 @@ describe("csv import", () => {
   });
 
   it("reads the model origin and reference", () => {
-    const csv = "material;gramos;horas_impresion;modelo_origen;modelo_ref\nPLA;10;1;descargado;thingiverse.com/thing/1\nPLA;10;1;;pieza-v3.f3d\n";
+    const csv = "material;gramos;horas_impresion;modelo_origen;modelo_ref\nPLA;10;1;;thingiverse.com/thing/1\nPLA;10;1;propio;pieza-v3.f3d\n";
     const { quotes } = csvToQuotes(csv);
     expect(quotes[0].input.modelSource).toBe("downloaded");
     expect(quotes[0].input.modelRef).toBe("thingiverse.com/thing/1");

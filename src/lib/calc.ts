@@ -118,7 +118,7 @@ export type CalcInput = {
 
 export const DEFAULT_INPUT: CalcInput = {
   name: "",
-  modelSource: "own",
+  modelSource: "downloaded",
   modelRef: "",
   description: "",
   material: "PLA",

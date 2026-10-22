@@ -140,21 +140,21 @@ describe("url state", () => {
         grams: 120,
         name: "Llavero",
         extrasNote: "Aro y cadena",
-        modelSource: "downloaded",
-        modelRef: "https://www.printables.com/model/1",
+        modelSource: "own",
+        modelRef: "https://cad.onshape.com/documents/1",
         description: "Rojo, 2 líneas",
       },
       currency: "USD",
     });
     expect(qs).toBe(
-      "n=Llavero&ms=downloaded&mr=https%3A%2F%2Fwww.printables.com%2Fmodel%2F1&desc=Rojo%2C+2+l%C3%ADneas&g=120&exn=Aro+y+cadena&c=USD",
+      "n=Llavero&ms=own&mr=https%3A%2F%2Fcad.onshape.com%2Fdocuments%2F1&desc=Rojo%2C+2+l%C3%ADneas&g=120&exn=Aro+y+cadena&c=USD",
     );
     const back = decodeState(new URLSearchParams(qs));
     expect(back.input?.grams).toBe(120);
     expect(back.input?.name).toBe("Llavero");
     expect(back.input?.extrasNote).toBe("Aro y cadena");
-    expect(back.input?.modelSource).toBe("downloaded");
-    expect(back.input?.modelRef).toBe("https://www.printables.com/model/1");
+    expect(back.input?.modelSource).toBe("own");
+    expect(back.input?.modelRef).toBe("https://cad.onshape.com/documents/1");
     expect(back.input?.description).toBe("Rojo, 2 líneas");
     expect(back.input?.material).toBe("PLA");
     expect(back.currency).toBe("USD");
@@ -181,7 +181,7 @@ describe("url state", () => {
     expect(back.currency).toBe("ARS");
     expect(back.input?.vatEnabled).toBe(false);
     expect(back.input?.mlInstallments).toBe("none");
-    expect(back.input?.modelSource).toBe("own");
+    expect(back.input?.modelSource).toBe("downloaded");
   });
 
   it("returns nothing for an empty query", () => {

@@ -299,7 +299,7 @@ export function csvToQuotes(text: string, existingPrinters: Printer[] = [], now 
     const input: CalcInput = {
       ...DEFAULT_INPUT,
       name: (get("nombre") ?? "").trim(),
-      modelSource: origin === "descargado" || origin === "downloaded" ? "downloaded" : "own",
+      modelSource: origin === "propio" || origin === "own" ? "own" : "downloaded",
       modelRef: (get("modelo_ref") ?? "").trim(),
       description: (get("descripcion") ?? "").trim(),
       material: materialRaw as MaterialId,

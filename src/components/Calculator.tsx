@@ -395,48 +395,32 @@ export function Calculator() {
               placeholder="Llavero para Cliente X"
               className="sm:col-span-2"
             />
-            <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-x-5 gap-y-4 items-start">
-              <div>
-                <p className="block text-sm font-medium text-ink-2 mb-1.5">Modelo</p>
-                <div className="flex" role="group" aria-label="Origen del modelo">
-                  <button
-                    type="button"
-                    className="seg px-4"
-                    aria-pressed={input.modelSource === "own"}
-                    onClick={() => set("modelSource")("own")}
-                  >
-                    Propio
-                  </button>
-                  <button
-                    type="button"
-                    className="seg px-4"
-                    aria-pressed={input.modelSource === "downloaded"}
-                    onClick={() => set("modelSource")("downloaded")}
-                  >
-                    Descargado
-                  </button>
-                </div>
-              </div>
-              {input.modelSource === "downloaded" ? (
-                <TextField
-                  label="De dónde lo descargaste"
-                  value={input.modelRef}
-                  onChange={set("modelRef")}
-                  placeholder="https://www.printables.com/model/…"
-                  maxLength={500}
-                  hint="Hace falta para guardar, así después sabés de dónde salió."
-                />
-              ) : (
-                <TextField
-                  label="Dónde está el archivo"
-                  value={input.modelRef}
-                  onChange={set("modelRef")}
-                  placeholder="Link de Onshape, o nombre del archivo en Fusion, Blender…"
-                  maxLength={500}
-                  hint="Hace falta para guardar, así después lo encontrás."
-                />
-              )}
-            </div>
+            {input.modelSource === "downloaded" ? (
+              <TextField
+                label="De dónde lo descargaste"
+                value={input.modelRef}
+                onChange={set("modelRef")}
+                placeholder="https://www.printables.com/model/…"
+                maxLength={500}
+                hint="Hace falta para guardar, así después sabés de dónde salió."
+              />
+            ) : (
+              <TextField
+                label="Dónde está el archivo"
+                value={input.modelRef}
+                onChange={set("modelRef")}
+                placeholder="Link de Onshape, o nombre del archivo en Fusion, Blender…"
+                maxLength={500}
+                hint="Hace falta para guardar, así después lo encontrás."
+              />
+            )}
+            <Checkbox
+              label="Modelo propio"
+              checked={input.modelSource === "own"}
+              onChange={(own) => set("modelSource")(own ? "own" : "downloaded")}
+              hint="Lo diseñaste vos: en vez del link de descarga, dónde está el archivo."
+              className="sm:pt-7"
+            />
             {descriptionOpen || input.description.trim() ? (
               <TextAreaField
                 label="Descripción"
