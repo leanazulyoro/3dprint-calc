@@ -1,13 +1,13 @@
 "use client";
 
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { CurrencyCode } from "./format";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { isCurrency, type CurrencyCode } from "./format";
 import { LocalRepo, RemoteRepo, type Repo } from "./repo";
 import { readWorkshopId, writeWorkshopId } from "./storage";
 import { getSupabase, supabaseConfigured } from "./supabase";
 
-export type Workshop = { id: string; name: string; joinCode: string; role: string };
+export type Workshop = { id: string; name: string; joinCode: string; role: string; currency: CurrencyCode };
 export type User = { id: string; email: string };
 
 type DataContextValue = {
@@ -28,9 +28,11 @@ type DataContextValue = {
   joinWorkshop: (code: string) => Promise<void>;
   createWorkshop: (name: string) => Promise<void>;
   renameWorkshop: (name: string) => Promise<void>;
-  /** Display currency, owned here so the top bar and the calculator agree. */
+  /** Display currency: the workshop's when logged in, else this browser's. */
   currency: CurrencyCode;
   setCurrency: (c: CurrencyCode) => void;
+  /** Last error from a background write (e.g. saving the workshop currency). */
+  lastError: string | null;
   /** Saved quotes in the active store; null until a page has counted them. */
   savedCount: number | null;
   setSavedCount: (n: number | null) => void;
@@ -45,20 +47,27 @@ function toUser(session: Session | null): User | null {
 }
 
 async function fetchWorkshops(client: SupabaseClient, userId: string): Promise<Workshop[]> {
-  const { data, error } = await client
-    .from("workshop_members")
-    .select("role, workshops(id, name, join_code, created_at)")
-    .eq("user_id", userId);
+  // `workshops(*)` tolerates columns added by later migrations (currency).
+  const { data, error } = await client.from("workshop_members").select("role, workshops(*)").eq("user_id", userId);
   if (error) throw new Error(error.message);
-  type Row = { role: string; workshops: { id: string; name: string; join_code: string; created_at: string } | null };
+  type Row = {
+    role: string;
+    workshops: { id: string; name: string; join_code: string; created_at: string; currency?: string } | null;
+  };
   const rows = (data ?? []) as unknown as Row[];
   return rows
     .flatMap((r) => {
       const w = Array.isArray(r.workshops) ? r.workshops[0] : r.workshops;
-      return w ? [{ id: w.id, name: w.name, joinCode: w.join_code, role: r.role, createdAt: w.created_at }] : [];
+      return w ? [{ ...w, role: r.role }] : [];
     })
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-    .map((w) => ({ id: w.id, name: w.name, joinCode: w.joinCode, role: w.role }));
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+    .map((w) => ({
+      id: w.id,
+      name: w.name,
+      joinCode: w.join_code,
+      role: w.role,
+      currency: w.currency && isCurrency(w.currency) ? w.currency : "ARS",
+    }));
 }
 
 export function DataProvider({ children }: { children: ReactNode }) {
@@ -69,8 +78,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // Which user the workshop list belongs to; null until fetched.
   const [workshopsFor, setWorkshopsFor] = useState<string | null>(null);
   const [workshopId, setWorkshopId] = useState<string | null>(null);
-  const [currency, setCurrency] = useState<CurrencyCode>("ARS");
+  const [localCurrency, setLocalCurrency] = useState<CurrencyCode>("ARS");
   const [savedCount, setSavedCount] = useState<number | null>(null);
+  const [lastError, setLastError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!client) return;
@@ -119,6 +129,32 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const workshop = useMemo(() => workshops.find((w) => w.id === workshopId) ?? null, [workshops, workshopId]);
   const workshopsLoading = user !== null && workshopsFor !== user.id;
   const ready = !supabaseConfigured || (!authLoading && !workshopsLoading);
+  const currency = workshop ? workshop.currency : localCurrency;
+
+  // Stable setter: consumers list it as an effect dependency.
+  const workshopRef = useRef(workshop);
+  useEffect(() => {
+    workshopRef.current = workshop;
+  }, [workshop]);
+  const setCurrency = useCallback(
+    (code: CurrencyCode) => {
+      const w = workshopRef.current;
+      if (!w || !client) {
+        setLocalCurrency(code);
+        return;
+      }
+      setWorkshops((prev) => prev.map((x) => (x.id === w.id ? { ...x, currency: code } : x)));
+      client
+        .from("workshops")
+        .update({ currency: code })
+        .eq("id", w.id)
+        .then(({ error }) => {
+          if (error) setLastError(`No se pudo guardar la moneda del taller: ${error.message}`);
+          else setLastError(null);
+        });
+    },
+    [client],
+  );
 
   // Keyed on ids, so a rename or a refetch of the workshop list keeps the same repo.
   const userId = user?.id ?? null;
@@ -140,6 +176,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       repo,
       currency,
       setCurrency,
+      lastError,
       savedCount,
       setSavedCount,
       signIn: async (email) => {
@@ -191,7 +228,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setWorkshops((prev) => prev.map((w) => (w.id === workshop.id ? { ...w, name: name.trim() || "Mi taller" } : w)));
       },
     }),
-    [authLoading, ready, user, workshops, workshop, client, repo, currency, savedCount],
+    [authLoading, ready, user, workshops, workshop, client, repo, currency, setCurrency, lastError, savedCount],
   );
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

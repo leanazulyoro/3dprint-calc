@@ -1,80 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
 import { useData } from "@/lib/data-context";
-import { CURRENCIES, type CurrencyCode } from "@/lib/format";
 import { AuthBar } from "./AuthBar";
-import { BookmarkIcon, ChevronIcon, DollarIcon } from "./icons";
+import { BookmarkIcon } from "./icons";
 import { Skeleton } from "./Skeleton";
-
-function CurrencyMenu() {
-  const { currency, setCurrency } = useData();
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (root.current && !root.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  const pick = (code: CurrencyCode) => {
-    setCurrency(code);
-    setOpen(false);
-  };
-
-  return (
-    <div ref={root} className="relative">
-      <button
-        type="button"
-        className="btn py-1.5 px-2.5 sm:px-3 gap-1.5"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={`Moneda: ${currency}`}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <DollarIcon />
-        <span className="num">{currency}</span>
-        <ChevronIcon />
-      </button>
-      {open ? (
-        <ul
-          role="menu"
-          aria-label="Moneda"
-          className="absolute right-0 mt-1.5 z-30 min-w-56 rounded-md border border-line bg-ticket py-1 shadow-[0_8px_24px_rgba(15,27,45,0.12)]"
-        >
-          {CURRENCIES.map((c) => (
-            <li key={c.code} role="none">
-              <button
-                type="button"
-                role="menuitemradio"
-                aria-checked={c.code === currency}
-                className={`flex w-full items-center justify-between gap-4 px-3 py-2.5 text-sm text-left hover:bg-paper ${
-                  c.code === currency ? "font-semibold text-accent-ink" : "text-ink"
-                }`}
-                onClick={() => pick(c.code)}
-              >
-                <span>{c.label}</span>
-                <span className="num text-ink-3">{c.code}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
-  );
-}
 
 export function TopBar() {
   const { ready, savedCount } = useData();
@@ -87,7 +17,6 @@ export function TopBar() {
           <span className="hidden sm:inline">Calculadora 3D</span>
         </Link>
         <nav className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2" aria-label="Principal">
-          <CurrencyMenu />
           {ready ? (
             <Link href="/guardados" className="btn py-1.5 px-2.5 sm:px-3 gap-1.5" aria-label="Guardados">
               <BookmarkIcon />

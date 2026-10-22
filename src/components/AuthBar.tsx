@@ -2,15 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useData } from "@/lib/data-context";
-import { ChevronIcon, WrenchIcon } from "./icons";
+import { ChevronIcon, SettingsIcon, WrenchIcon } from "./icons";
+import { SettingsDialog } from "./SettingsDialog";
 import { Skeleton } from "./Skeleton";
-import { WorkshopDialog } from "./WorkshopDialog";
 
 /** Login state in the top bar: magic link in a modal, workshop switcher, sign out. */
 export function AuthBar() {
   const { configured, ready, user, workshop, signIn, signOut } = useData();
   const [open, setOpen] = useState(false);
-  const [workshopOpen, setWorkshopOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [sending, setSending] = useState(false);
@@ -24,7 +24,27 @@ export function AuthBar() {
     if (!open && d.open) d.close();
   }, [open]);
 
-  if (!configured) return null;
+  const settingsButton = (
+    <button
+      type="button"
+      className="btn py-1.5 px-2.5"
+      aria-label="Configuración"
+      aria-haspopup="dialog"
+      aria-expanded={settingsOpen}
+      onClick={() => setSettingsOpen(true)}
+    >
+      <SettingsIcon />
+    </button>
+  );
+
+  if (!configured) {
+    return (
+      <>
+        {settingsButton}
+        <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      </>
+    );
+  }
   if (!ready) {
     return (
       <div className="flex items-center gap-2 sm:ml-2" aria-busy="true" aria-label="Cargando sesión">
@@ -41,14 +61,14 @@ export function AuthBar() {
           type="button"
           className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-accent/30 bg-accent-soft/70 px-2.5 sm:px-3 py-1.5 text-sm font-medium text-accent-ink hover:bg-accent-soft"
           aria-haspopup="dialog"
-          aria-expanded={workshopOpen}
-          onClick={() => setWorkshopOpen(true)}
+          aria-expanded={settingsOpen}
+          onClick={() => setSettingsOpen(true)}
         >
           <WrenchIcon className="shrink-0" />
           <span className="max-w-20 sm:max-w-40 truncate">{workshop?.name ?? "Sin taller"}</span>
           <ChevronIcon className="shrink-0" />
         </button>
-        <WorkshopDialog open={workshopOpen} onClose={() => setWorkshopOpen(false)} />
+        <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
         <button type="button" className="btn py-1.5" onClick={() => void signOut()} title={user.email}>
           Salir
         </button>
@@ -71,6 +91,15 @@ export function AuthBar() {
 
   return (
     <>
+      {settingsButton}
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onLogin={() => {
+          setSettingsOpen(false);
+          setOpen(true);
+        }}
+      />
       <button type="button" className="btn btn-primary py-1.5 px-2.5 sm:px-3" onClick={() => setOpen(true)}>
         <span className="sm:hidden">Entrar</span>
         <span className="hidden sm:inline">Iniciar sesión</span>

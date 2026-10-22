@@ -9,6 +9,7 @@ create table if not exists public.workshops (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   join_code text not null unique default encode(gen_random_bytes(5), 'hex'),
+  currency text not null default 'ARS' check (currency in ('ARS', 'USD', 'EUR', 'BRL', 'CLP', 'UYU', 'MXN', 'COP')),
   created_by uuid not null references auth.users (id) on delete cascade,
   created_at timestamptz not null default now()
 );
