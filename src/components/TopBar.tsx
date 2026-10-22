@@ -6,6 +6,7 @@ import { useData } from "@/lib/data-context";
 import { CURRENCIES, type CurrencyCode } from "@/lib/format";
 import { AuthBar } from "./AuthBar";
 import { BookmarkIcon, ChevronIcon, DollarIcon } from "./icons";
+import { Skeleton } from "./Skeleton";
 
 function CurrencyMenu() {
   const { currency, setCurrency } = useData();
@@ -76,7 +77,7 @@ function CurrencyMenu() {
 }
 
 export function TopBar() {
-  const { savedCount } = useData();
+  const { ready, savedCount } = useData();
   return (
     <div className="no-print sticky top-0 z-20 border-b border-line bg-ticket/85 backdrop-blur">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 sm:px-6 py-2">
@@ -85,11 +86,19 @@ export function TopBar() {
         </Link>
         <nav className="flex flex-wrap items-center justify-end gap-2" aria-label="Principal">
           <CurrencyMenu />
-          <Link href="/guardados" className="btn py-1.5 gap-1.5">
-            <BookmarkIcon />
-            <span>Guardados</span>
-            {savedCount !== null ? <span className="num text-ink-3">{savedCount}</span> : null}
-          </Link>
+          {ready ? (
+            <Link href="/guardados" className="btn py-1.5 gap-1.5">
+              <BookmarkIcon />
+              <span>Guardados</span>
+              {savedCount !== null ? (
+                <span className="num text-ink-3">{savedCount}</span>
+              ) : (
+                <Skeleton className="h-3.5 w-4" />
+              )}
+            </Link>
+          ) : (
+            <Skeleton className="h-8 w-32" />
+          )}
           <AuthBar />
         </nav>
       </div>

@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useData } from "@/lib/data-context";
 import { ChevronIcon, WrenchIcon } from "./icons";
+import { Skeleton } from "./Skeleton";
 
 /** Login state in the top bar: magic link in a modal, workshop switcher, sign out. */
 export function AuthBar() {
-  const { configured, authLoading, user, workshops, workshop, selectWorkshop, signIn, signOut } = useData();
+  const { configured, ready, user, workshops, workshop, selectWorkshop, signIn, signOut } = useData();
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
@@ -22,7 +23,14 @@ export function AuthBar() {
   }, [open]);
 
   if (!configured) return null;
-  if (authLoading) return <span className="text-sm text-ink-3 self-center">…</span>;
+  if (!ready) {
+    return (
+      <div className="flex items-center gap-2 sm:ml-2" aria-busy="true" aria-label="Cargando sesión">
+        <Skeleton className="h-8 w-28 rounded-full" />
+        <Skeleton className="h-8 w-16" />
+      </div>
+    );
+  }
 
   if (user) {
     const pill = "inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent-soft/70 px-3 py-1.5 text-sm font-medium text-accent-ink";

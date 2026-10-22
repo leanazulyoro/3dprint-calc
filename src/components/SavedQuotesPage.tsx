@@ -12,12 +12,13 @@ import { migrateQuotes } from "@/lib/migrate";
 import { printerFields, type Printer } from "@/lib/printers";
 import { daysSinceSaved, isStale, withPrinter, type Quote } from "@/lib/quotes";
 import { readActiveId, writeActiveId, writePrinterId, writeState } from "@/lib/storage";
+import { Skeleton } from "./Skeleton";
 
 const when = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" });
 
 export function SavedQuotesPage() {
   const router = useRouter();
-  const { repo, mode, workshop, joinWorkshop, renameWorkshop, setSavedCount } = useData();
+  const { repo, mode, ready, workshop, joinWorkshop, renameWorkshop, setSavedCount } = useData();
   const [quotes, setQuotes] = useState<Quote[] | null>(null);
   const [printers, setPrinters] = useState<Printer[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +37,7 @@ export function SavedQuotesPage() {
   };
 
   useEffect(() => {
+    if (!ready) return;
     let cancelled = false;
     const load = hasIndexedDb() || mode === "remote" ? Promise.all([repo.listPrinters(), repo.listQuotes()]) : Promise.reject(new Error("Este navegador no permite guardar datos locales."));
     load
@@ -55,7 +57,7 @@ export function SavedQuotesPage() {
     return () => {
       cancelled = true;
     };
-  }, [repo, mode, setSavedCount]);
+  }, [repo, mode, ready, setSavedCount]);
 
   // Logged in: anything still in this browser can be moved to the workshop.
   useEffect(() => {
@@ -291,7 +293,25 @@ export function SavedQuotesPage() {
       ) : null}
 
       {quotes === null ? (
-        <p className="mt-8 text-sm text-ink-3">Cargando…</p>
+        <div className="mt-8 overflow-hidden rounded-lg border border-line bg-ticket" aria-busy="true" aria-label="Cargando presupuestos">
+          <div className="flex gap-6 border-b border-line px-3 py-3">
+            <Skeleton className="h-3.5 w-16" />
+            <Skeleton className="h-3.5 w-28" />
+            <Skeleton className="h-3.5 w-36" />
+            <Skeleton className="ml-auto h-3.5 w-14" />
+            <Skeleton className="h-3.5 w-16" />
+          </div>
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex items-center gap-6 border-b border-line/60 px-3 py-3 last:border-b-0">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-4 w-44" />
+              <Skeleton className="ml-auto h-4 w-16" />
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-7 w-28" />
+            </div>
+          ))}
+        </div>
       ) : list.length === 0 ? (
         <p className="mt-8 rounded-lg border border-dashed border-line px-4 py-8 text-sm text-ink-2 text-center">
           Todavía no guardaste ninguno.{" "}

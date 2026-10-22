@@ -14,6 +14,8 @@ type DataContextValue = {
   /** Supabase env present: login is possible. */
   configured: boolean;
   authLoading: boolean;
+  /** Session and workshop list resolved (always true without Supabase). Pages wait for this. */
+  ready: boolean;
   user: User | null;
   workshops: Workshop[];
   workshop: Workshop | null;
@@ -64,6 +66,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [authLoading, setAuthLoading] = useState(supabaseConfigured);
   const [user, setUser] = useState<User | null>(null);
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
+  // Which user the workshop list belongs to; null until fetched.
+  const [workshopsFor, setWorkshopsFor] = useState<string | null>(null);
   const [workshopId, setWorkshopId] = useState<string | null>(null);
   const [currency, setCurrency] = useState<CurrencyCode>("ARS");
   const [savedCount, setSavedCount] = useState<number | null>(null);
@@ -98,11 +102,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
       .then((list) => {
         if (!active) return;
         setWorkshops(list);
+        setWorkshopsFor(user.id);
         const stored = readWorkshopId();
         setWorkshopId(list.some((w) => w.id === stored) ? stored : (list[0]?.id ?? null));
       })
       .catch(() => {
-        if (active) setWorkshops([]);
+        if (!active) return;
+        setWorkshops([]);
+        setWorkshopsFor(user.id);
       });
     return () => {
       active = false;
@@ -110,6 +117,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [client, user]);
 
   const workshop = useMemo(() => workshops.find((w) => w.id === workshopId) ?? null, [workshops, workshopId]);
+  const workshopsLoading = user !== null && workshopsFor !== user.id;
+  const ready = !supabaseConfigured || (!authLoading && !workshopsLoading);
 
   // Keyed on ids, so a rename or a refetch of the workshop list keeps the same repo.
   const userId = user?.id ?? null;
@@ -123,6 +132,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     () => ({
       configured: supabaseConfigured,
       authLoading,
+      ready,
       user,
       workshops,
       workshop,
@@ -144,6 +154,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (!client) return;
         await client.auth.signOut();
         setWorkshops([]);
+        setWorkshopsFor(null);
         setWorkshopId(null);
       },
       selectWorkshop: (id) => {
@@ -180,7 +191,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setWorkshops((prev) => prev.map((w) => (w.id === workshop.id ? { ...w, name: name.trim() || "Mi taller" } : w)));
       },
     }),
-    [authLoading, user, workshops, workshop, client, repo, currency, savedCount],
+    [authLoading, ready, user, workshops, workshop, client, repo, currency, savedCount],
   );
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

@@ -59,7 +59,7 @@ const PRINTER_KEY_OF: Record<keyof PrinterFields, "watts" | "price" | "lifeHours
 };
 
 export function Calculator() {
-  const { repo, mode, workshop, currency, setCurrency, setSavedCount } = useData();
+  const { repo, mode, ready, workshop, currency, setCurrency, setSavedCount } = useData();
   const [input, setInput] = useState<CalcInput>(DEFAULT_INPUT);
   const [loaded, setLoaded] = useState(false);
   const fromUrl = useRef(false);
@@ -96,7 +96,7 @@ export function Calculator() {
 
   // Printers and quotes from whichever store is active (browser or workshop).
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || !ready) return;
     let cancelled = false;
     (async () => {
       let ps = await repo.listPrinters();
@@ -135,7 +135,7 @@ export function Calculator() {
     return () => {
       cancelled = true;
     };
-  }, [repo, loaded, setSavedCount]);
+  }, [repo, loaded, ready, setSavedCount]);
 
   // Printer edits persist a moment after the last keystroke.
   const pending = useRef<{ timer: number; printer: Printer } | null>(null);
