@@ -7,7 +7,7 @@ import { DEFAULT_INPUT, MATERIALS } from "@/lib/calc";
 import { csvFilename, csvToQuotes, quotesToCsv } from "@/lib/csv";
 import { localRepo, useData } from "@/lib/data-context";
 import { hasIndexedDb } from "@/lib/db";
-import { hoursLabel, money } from "@/lib/format";
+import { hostOf, hoursLabel, isUrlLike, money, toHref } from "@/lib/format";
 import { migrateQuotes } from "@/lib/migrate";
 import { printerFields, type Printer } from "@/lib/printers";
 import { daysSinceSaved, isStale, withPrinter, type Quote } from "@/lib/quotes";
@@ -351,10 +351,27 @@ export function SavedQuotesPage() {
                   >
                     <td className="px-3 py-2.5 num whitespace-nowrap text-ink-2">{when.format(q.createdAt)}</td>
                     <td className="px-3 py-2.5 font-medium max-w-[18rem]">
-                      <span className="block truncate">
+                      <span className="block truncate" title={q.input.description?.trim() || undefined}>
                         {q.name}
                         {active ? <span className="ml-1.5 text-xs font-normal text-ink-3">en el form</span> : null}
                       </span>
+                      {q.input.modelRef?.trim() ? (
+                        isUrlLike(q.input.modelRef) ? (
+                          <a
+                            href={toHref(q.input.modelRef)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block truncate text-xs font-normal text-accent-ink hover:underline"
+                            title={q.input.modelRef}
+                          >
+                            modelo en {hostOf(q.input.modelRef)} ↗
+                          </a>
+                        ) : (
+                          <span className="block truncate text-xs font-normal text-ink-3" title={q.input.modelRef}>
+                            {q.input.modelRef.trim()}
+                          </span>
+                        )
+                      ) : null}
                       {stale ? (
                         <span
                           className="mt-1 inline-flex items-center gap-1 rounded-full bg-[color:var(--l-energy)]/15 px-2 py-0.5 text-xs font-medium text-ink"

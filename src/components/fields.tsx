@@ -67,9 +67,12 @@ type TextFieldProps = {
   onChange: (v: string) => void;
   placeholder?: string;
   className?: string;
+  hint?: ReactNode;
+  maxLength?: number;
+  type?: "text" | "url";
 };
 
-export function TextField({ label, value, onChange, placeholder, className }: TextFieldProps) {
+export function TextField({ label, value, onChange, placeholder, className, hint, maxLength = 80, type = "text" }: TextFieldProps) {
   const id = useId();
   return (
     <div className={className}>
@@ -78,11 +81,44 @@ export function TextField({ label, value, onChange, placeholder, className }: Te
       </label>
       <input
         id={id}
-        type="text"
+        type={type}
+        inputMode={type === "url" ? "url" : undefined}
         className="field"
         value={value}
         placeholder={placeholder}
-        maxLength={80}
+        maxLength={maxLength}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {hint ? <p className="mt-1.5 text-xs text-ink-3 leading-snug">{hint}</p> : null}
+    </div>
+  );
+}
+
+type TextAreaFieldProps = {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  rows?: number;
+  className?: string;
+  autoFocus?: boolean;
+};
+
+export function TextAreaField({ label, value, onChange, placeholder, rows = 3, className, autoFocus }: TextAreaFieldProps) {
+  const id = useId();
+  return (
+    <div className={className}>
+      <label htmlFor={id} className="block text-sm font-medium text-ink-2 mb-1.5">
+        {label}
+      </label>
+      <textarea
+        id={id}
+        className="field resize-y"
+        value={value}
+        placeholder={placeholder}
+        rows={rows}
+        maxLength={2000}
+        autoFocus={autoFocus}
         onChange={(e) => onChange(e.target.value)}
       />
     </div>

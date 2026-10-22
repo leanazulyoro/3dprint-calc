@@ -94,7 +94,7 @@ describe("csv export", () => {
   it("uses semicolons, decimal commas, quoting and a BOM", () => {
     const csv = quotesToCsv([makeQuote()], [printer]);
     const [header, row] = csv.split("\r\n");
-    expect(header.startsWith("\uFEFFfecha;nombre;moneda")).toBe(true);
+    expect(header.startsWith("\uFEFFfecha;nombre;modelo_origen;modelo_ref;descripcion;moneda")).toBe(true);
     expect(row).toContain('"Llavero; ""test"""');
     expect(row).toContain(";120,00;");
     expect(row).not.toMatch(/\d\.\d/);
@@ -125,6 +125,9 @@ describe("csv import", () => {
       { name: "Lámpara; LED" },
       {
         name: "Lámpara; LED",
+        modelSource: "downloaded",
+        modelRef: "https://www.printables.com/model/123",
+        description: "Pantalla; base negra\nsegunda línea",
         material: "PETG",
         grams: 250,
         hours: 8,
@@ -154,6 +157,15 @@ describe("csv import", () => {
     expect(quotes[0].updatedAt).toBe(q.createdAt);
     expect(quotes[0].input).toEqual(q.input);
     expect(quotes[0].result.price).toBeCloseTo(q.result.price);
+  });
+
+  it("reads the model origin and reference", () => {
+    const csv = "material;gramos;horas_impresion;modelo_origen;modelo_ref\nPLA;10;1;descargado;thingiverse.com/thing/1\nPLA;10;1;;pieza-v3.f3d\n";
+    const { quotes } = csvToQuotes(csv);
+    expect(quotes[0].input.modelSource).toBe("downloaded");
+    expect(quotes[0].input.modelRef).toBe("thingiverse.com/thing/1");
+    expect(quotes[1].input.modelSource).toBe("own");
+    expect(quotes[1].input.modelRef).toBe("pieza-v3.f3d");
   });
 
   it("creates unknown printers from the row's numbers", () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_INPUT, calculate, mlFixedFee, mlGrossUp } from "./calc";
+import { hostOf, isUrlLike, toHref } from "./format";
 import { decodeState, encodeState } from "./url";
 
 describe("calculate", () => {
@@ -133,12 +134,28 @@ describe("Mercado Libre", () => {
 
 describe("url state", () => {
   it("round-trips non-default fields and omits defaults", () => {
-    const qs = encodeState({ input: { ...DEFAULT_INPUT, grams: 120, name: "Llavero", extrasNote: "Aro y cadena" }, currency: "USD" });
-    expect(qs).toBe("n=Llavero&g=120&exn=Aro+y+cadena&c=USD");
+    const qs = encodeState({
+      input: {
+        ...DEFAULT_INPUT,
+        grams: 120,
+        name: "Llavero",
+        extrasNote: "Aro y cadena",
+        modelSource: "downloaded",
+        modelRef: "https://www.printables.com/model/1",
+        description: "Rojo, 2 líneas",
+      },
+      currency: "USD",
+    });
+    expect(qs).toBe(
+      "n=Llavero&ms=downloaded&mr=https%3A%2F%2Fwww.printables.com%2Fmodel%2F1&desc=Rojo%2C+2+l%C3%ADneas&g=120&exn=Aro+y+cadena&c=USD",
+    );
     const back = decodeState(new URLSearchParams(qs));
     expect(back.input?.grams).toBe(120);
     expect(back.input?.name).toBe("Llavero");
     expect(back.input?.extrasNote).toBe("Aro y cadena");
+    expect(back.input?.modelSource).toBe("downloaded");
+    expect(back.input?.modelRef).toBe("https://www.printables.com/model/1");
+    expect(back.input?.description).toBe("Rojo, 2 líneas");
     expect(back.input?.material).toBe("PLA");
     expect(back.currency).toBe("USD");
   });
@@ -157,16 +174,28 @@ describe("url state", () => {
   });
 
   it("ignores junk values", () => {
-    const back = decodeState(new URLSearchParams("m=WOOD&g=-5&c=XXX&x=abc&iva=yes&mli=same99"));
+    const back = decodeState(new URLSearchParams("m=WOOD&g=-5&c=XXX&x=abc&iva=yes&mli=same99&ms=stolen"));
     expect(back.input?.material).toBe("PLA");
     expect(back.input?.grams).toBe(DEFAULT_INPUT.grams);
     expect(back.input?.multiplier).toBe(DEFAULT_INPUT.multiplier);
     expect(back.currency).toBe("ARS");
     expect(back.input?.vatEnabled).toBe(false);
     expect(back.input?.mlInstallments).toBe("none");
+    expect(back.input?.modelSource).toBe("own");
   });
 
   it("returns nothing for an empty query", () => {
     expect(decodeState(new URLSearchParams(""))).toEqual({});
+  });
+});
+
+describe("model references", () => {
+  it("tells links from file names", () => {
+    expect(isUrlLike("https://cad.onshape.com/documents/abc")).toBe(true);
+    expect(isUrlLike("printables.com/model/1")).toBe(true);
+    expect(isUrlLike("pieza-v3.f3d")).toBe(false);
+    expect(isUrlLike("Llavero final.blend")).toBe(false);
+    expect(toHref("printables.com/model/1")).toBe("https://printables.com/model/1");
+    expect(hostOf("https://www.thingiverse.com/thing/1")).toBe("thingiverse.com");
   });
 });

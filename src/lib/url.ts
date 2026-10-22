@@ -6,6 +6,9 @@ export type AppState = { input: CalcInput; currency: CurrencyCode };
 /** Short keys keep share links readable. */
 const KEYS: Record<keyof CalcInput, string> = {
   name: "n",
+  modelSource: "ms",
+  modelRef: "mr",
+  description: "desc",
   material: "m",
   grams: "g",
   pricePerKg: "pk",
@@ -51,6 +54,12 @@ export function decodeState(params: URLSearchParams): Partial<AppState> {
     if (raw === null) continue;
     if (field === "name" || field === "extrasNote") {
       input[field] = raw.slice(0, 120);
+    } else if (field === "modelRef") {
+      input.modelRef = raw.slice(0, 500);
+    } else if (field === "description") {
+      input.description = raw.slice(0, 2000);
+    } else if (field === "modelSource") {
+      if (raw === "own" || raw === "downloaded") input.modelSource = raw;
     } else if (field === "material") {
       if (MATERIALS.some((m) => m.id === raw)) input.material = raw as MaterialId;
     } else if (field === "mlInstallments") {

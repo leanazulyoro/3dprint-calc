@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { CalcInput, CalcResult } from "@/lib/calc";
 import { MATERIALS, ML_FEES_VAT, ML_INSTALLMENTS } from "@/lib/calc";
-import { hoursLabel, money, percent, type CurrencyCode } from "@/lib/format";
+import { hostOf, hoursLabel, isUrlLike, money, percent, toHref, type CurrencyCode } from "@/lib/format";
 import { LayerStack, type Layer } from "./LayerStack";
 
 type Props = {
@@ -61,6 +61,24 @@ export function Summary({ input, result: r, currency, onCopyText, onCopyLink, on
           {material}, {Number.isFinite(input.grams) ? input.grams : 0} g, {hoursLabel(r.printHours)}
         </p>
       </header>
+
+      {input.description.trim() || input.modelRef.trim() ? (
+        <div className="mt-3 space-y-1 text-sm text-ink-2">
+          {input.description.trim() ? <p className="whitespace-pre-line">{input.description.trim()}</p> : null}
+          {input.modelRef.trim() ? (
+            <p className="break-all">
+              Modelo {input.modelSource === "downloaded" ? "descargado" : "propio"}:{" "}
+              {isUrlLike(input.modelRef) ? (
+                <a href={toHref(input.modelRef)} target="_blank" rel="noreferrer" className="text-accent-ink hover:underline">
+                  {hostOf(input.modelRef)}
+                </a>
+              ) : (
+                <span className="text-ink">{input.modelRef.trim()}</span>
+              )}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {staleDays !== null ? (
         <p

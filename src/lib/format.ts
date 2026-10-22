@@ -53,3 +53,28 @@ const pctFormatter = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 }
 export function percent(v: number): string {
   return `${pctFormatter.format(Number.isFinite(v) ? v : 0)}%`;
 }
+
+const TLDS = /\.(com|net|org|ar|io|co|app|dev|me|cloud|xyz|info|uk|es|br|cl|uy|mx)$/i;
+
+/** A reference that reads as a web address rather than a file name ("pieza.f3d"). */
+export function isUrlLike(s: string): boolean {
+  const t = s.trim();
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(t) || /^www\./i.test(t)) return true;
+  const m = t.match(/^([\w-]+(?:\.[\w-]+)+)(\/\S*)?$/i);
+  if (!m) return false;
+  return Boolean(m[2]) || TLDS.test(m[1]);
+}
+
+/** "printables.com/model/1" → "https://printables.com/model/1"; leaves schemes alone. */
+export function toHref(url: string): string {
+  const t = url.trim();
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(t) ? t : `https://${t}`;
+}
+
+export function hostOf(url: string): string {
+  try {
+    return new URL(toHref(url)).host.replace(/^www\./, "");
+  } catch {
+    return url.trim();
+  }
+}

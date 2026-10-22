@@ -32,7 +32,7 @@ import {
   writeState,
 } from "@/lib/storage";
 import { decodeState, encodeState } from "@/lib/url";
-import { Checkbox, NumberField, Section, SelectField, TextField } from "./fields";
+import { Checkbox, NumberField, Section, SelectField, TextAreaField, TextField } from "./fields";
 import { ResetIcon } from "./icons";
 import { Summary, buildLayers } from "./Summary";
 
@@ -74,6 +74,7 @@ export function Calculator() {
   const [dataLoaded, setDataLoaded] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
   const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null);
+  const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [mlApi, setMlApi] = useState<{ configured: boolean } | null>(null);
   const [mlCategory, setMlCategory] = useState("");
   const [mlStatus, setMlStatus] = useState<string | null>(null);
@@ -275,6 +276,13 @@ export function Calculator() {
 
   const saveQuote = async (asNew: boolean) => {
     if (!dataLoaded || dataError) throw new Error(dataError ?? "Todavía cargando");
+    if (!input.modelRef.trim()) {
+      throw new Error(
+        input.modelSource === "downloaded"
+          ? "Cargá de dónde descargaste el modelo"
+          : "Cargá una referencia del modelo: link del CAD o nombre del archivo",
+      );
+    }
     await flushPrinter();
     let pid = printerId;
     let pname = printer?.name ?? "";
@@ -330,6 +338,8 @@ export function Calculator() {
     const lines = [
       `Presupuesto impresión 3D${input.name.trim() ? `: ${input.name.trim()}` : ""}`,
       `${input.material}, ${input.grams || 0} g, ${hoursLabel(result.printHours)}${printer ? `, ${printer.name}` : ""}`,
+      ...(input.description.trim() ? [input.description.trim()] : []),
+      ...(input.modelRef.trim() ? [`Modelo ${input.modelSource === "downloaded" ? "descargado" : "propio"}: ${input.modelRef.trim()}`] : []),
       "",
       ...buildLayers(result, input.failureRate, input.extrasNote)
         .filter((l) => l.value > 0 || (l.key !== "labor" && l.key !== "extras"))
@@ -385,6 +395,66 @@ export function Calculator() {
               placeholder="Llavero para Cliente X"
               className="sm:col-span-2"
             />
+            <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-x-5 gap-y-4 items-start">
+              <div>
+                <p className="block text-sm font-medium text-ink-2 mb-1.5">Modelo</p>
+                <div className="flex" role="group" aria-label="Origen del modelo">
+                  <button
+                    type="button"
+                    className="seg px-4"
+                    aria-pressed={input.modelSource === "own"}
+                    onClick={() => set("modelSource")("own")}
+                  >
+                    Propio
+                  </button>
+                  <button
+                    type="button"
+                    className="seg px-4"
+                    aria-pressed={input.modelSource === "downloaded"}
+                    onClick={() => set("modelSource")("downloaded")}
+                  >
+                    Descargado
+                  </button>
+                </div>
+              </div>
+              {input.modelSource === "downloaded" ? (
+                <TextField
+                  label="De dónde lo descargaste"
+                  value={input.modelRef}
+                  onChange={set("modelRef")}
+                  placeholder="https://www.printables.com/model/…"
+                  maxLength={500}
+                  hint="Hace falta para guardar, así después sabés de dónde salió."
+                />
+              ) : (
+                <TextField
+                  label="Dónde está el archivo"
+                  value={input.modelRef}
+                  onChange={set("modelRef")}
+                  placeholder="Link de Onshape, o nombre del archivo en Fusion, Blender…"
+                  maxLength={500}
+                  hint="Hace falta para guardar, así después lo encontrás."
+                />
+              )}
+            </div>
+            {descriptionOpen || input.description.trim() ? (
+              <TextAreaField
+                label="Descripción"
+                value={input.description}
+                onChange={set("description")}
+                placeholder="Detalles del pedido, color, terminación, para quién es…"
+                className="sm:col-span-2"
+                autoFocus={descriptionOpen && !input.description}
+              />
+            ) : (
+              <button
+                type="button"
+                className="sm:col-span-2 text-left text-sm font-medium text-accent-ink hover:underline"
+                onClick={() => setDescriptionOpen(true)}
+              >
+                + Agregar descripción
+              </button>
+            )}
             <SelectField
               label="Material"
               value={input.material}

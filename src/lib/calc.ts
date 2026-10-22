@@ -83,8 +83,14 @@ export function mlFixedFee(listPrice: number): number {
   return tier ? tier.fee : 0;
 }
 
+export type ModelSource = "own" | "downloaded";
+
 export type CalcInput = {
   name: string;
+  /** Where the model lives: a download URL, or the file in the CAD tool (an Onshape link, a file name). */
+  modelSource: ModelSource;
+  modelRef: string;
+  description: string;
   material: MaterialId;
   grams: number;
   pricePerKg: number;
@@ -112,6 +118,9 @@ export type CalcInput = {
 
 export const DEFAULT_INPUT: CalcInput = {
   name: "",
+  modelSource: "own",
+  modelRef: "",
+  description: "",
   material: "PLA",
   grams: 50,
   pricePerKg: 30000,

@@ -35,6 +35,9 @@ function stamp(ms: number): string {
 export const CSV_COLUMNS = [
   "fecha",
   "nombre",
+  "modelo_origen",
+  "modelo_ref",
+  "descripcion",
   "moneda",
   "material",
   "gramos",
@@ -93,6 +96,9 @@ export function quoteToRow(q: Quote, printers: Printer[] = []): (string | number
   return [
     stamp(q.createdAt),
     q.name,
+    i.modelSource === "downloaded" ? "descargado" : "propio",
+    i.modelRef ?? "",
+    i.description ?? "",
     q.currency,
     i.material,
     i.grams,
@@ -289,9 +295,13 @@ export function csvToQuotes(text: string, existingPrinters: Printer[] = [], now 
       newPrinters.push(printer);
     }
 
+    const origin = (get("modelo_origen") ?? "").trim().toLowerCase();
     const input: CalcInput = {
       ...DEFAULT_INPUT,
       name: (get("nombre") ?? "").trim(),
+      modelSource: origin === "descargado" || origin === "downloaded" ? "downloaded" : "own",
+      modelRef: (get("modelo_ref") ?? "").trim(),
+      description: (get("descripcion") ?? "").trim(),
       material: materialRaw as MaterialId,
       grams,
       hours,
