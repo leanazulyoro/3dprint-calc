@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState, type ReactNode } from "react";
+import { ChevronIcon } from "./icons";
 
 function parse(text: string): number {
   const t = text.trim().replace(",", ".");
@@ -155,13 +156,44 @@ export function SelectField({ label, value, onChange, options, placeholder, hint
   );
 }
 
-export function Section({ title, lead, children }: { title: string; lead?: string; children: ReactNode }) {
-  return (
-    <section className="pt-7 first:pt-0">
-      <h2 className="display text-xl font-semibold leading-tight">{title}</h2>
+type SectionProps = {
+  title: string;
+  lead?: string;
+  children: ReactNode;
+  /** When given, the section folds; `summary` keeps the gist visible while closed. */
+  open?: boolean;
+  onToggle?: (open: boolean) => void;
+  summary?: string;
+};
+
+export function Section({ title, lead, children, open, onToggle, summary }: SectionProps) {
+  const body = (
+    <>
       {lead ? <p className="mt-1 text-sm text-ink-2 max-w-prose">{lead}</p> : null}
       <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">{children}</div>
-    </section>
+    </>
+  );
+  if (open === undefined) {
+    return (
+      <section className="pt-7 first:pt-0">
+        <h2 className="display text-xl font-semibold leading-tight">{title}</h2>
+        {body}
+      </section>
+    );
+  }
+  return (
+    <details
+      className="group pt-7 first:pt-0"
+      open={open}
+      onToggle={(e) => onToggle?.((e.currentTarget as HTMLDetailsElement).open)}
+    >
+      <summary className="flex cursor-pointer list-none items-baseline gap-3 rounded-md -mx-2 px-2 py-1 hover:bg-ticket/70 [&::-webkit-details-marker]:hidden">
+        <h2 className="display text-xl font-semibold leading-tight shrink-0">{title}</h2>
+        {!open && summary ? <span className="min-w-0 truncate text-sm text-ink-2">{summary}</span> : null}
+        <ChevronIcon className="ml-auto shrink-0 self-center text-ink-3 transition-transform group-open:rotate-180" />
+      </summary>
+      {body}
+    </details>
   );
 }
 

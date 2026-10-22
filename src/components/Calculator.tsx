@@ -23,13 +23,18 @@ import type { MlFee } from "@/lib/ml";
 import { defaultPrinter, matchPrinter, printerFields, printerFromFields, type Printer } from "@/lib/printers";
 import { daysSinceSaved, isStale, newQuoteId, stripPrinter, withPrinter, type Quote } from "@/lib/quotes";
 import {
+  DEFAULT_SECTIONS,
   clearState,
   readActiveId,
   readPrinterId,
+  readSections,
   readState,
   writeActiveId,
   writePrinterId,
+  writeSections,
   writeState,
+  type SectionId,
+  type SectionState,
 } from "@/lib/storage";
 import { decodeState, encodeState } from "@/lib/url";
 import { Checkbox, NumberField, Section, SelectField, TextAreaField, TextField } from "./fields";
@@ -75,6 +80,7 @@ export function Calculator() {
   const [dataError, setDataError] = useState<string | null>(null);
   const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
+  const [sections, setSections] = useState<SectionState>(DEFAULT_SECTIONS);
   const [mlApi, setMlApi] = useState<{ configured: boolean } | null>(null);
   const [mlCategory, setMlCategory] = useState("");
   const [mlStatus, setMlStatus] = useState<string | null>(null);
@@ -87,8 +93,17 @@ export function Calculator() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration from URL/storage
     if (saved.input) setInput(saved.input);
     if (saved.currency) setCurrency(saved.currency);
+    setSections(readSections());
     setLoaded(true);
   }, [setCurrency]);
+
+  const toggleSection = (id: SectionId) => (open: boolean) =>
+    setSections((prev) => {
+      if (prev[id] === open) return prev;
+      const next = { ...prev, [id]: open };
+      writeSections(next);
+      return next;
+    });
 
   useEffect(() => {
     if (!loaded) return;
@@ -217,6 +232,15 @@ export function Calculator() {
   const printer = printers.find((p) => p.id === printerId) ?? null;
   const isPreset = MARGIN_PRESETS.some((m) => m.value === input.multiplier);
   const activeQuote = activeQuoteId ? (quotes.find((q) => q.id === activeQuoteId) ?? null) : null;
+
+  const laborSummary = (() => {
+    const parts: string[] = [];
+    if (result.labor > 0) parts.push(`${input.laborHours} h a ${money(input.laborRate, currency)}`);
+    if (result.extras > 0) parts.push(`extras ${money(input.extras, currency)}${input.extrasNote.trim() ? ` (${input.extrasNote.trim()})` : ""}`);
+    return parts.length ? parts.join(", ") : "Sin mano de obra ni extras";
+  })();
+  const printerSummary = `${printer?.name ?? "Sin impresora"}, ${Number.isFinite(input.watts) ? input.watts : 0} W, ${money(input.kwhPrice, currency)}/kWh, fallos ${percent(input.failureRate)}`;
+  const mlSummary = `${input.vatEnabled ? `IVA ${percent(input.vatRate)}` : "Sin IVA"}, ${input.mlEnabled && mlAvailable ? `Mercado Libre ${percent(input.mlCommission)}` : "sin Mercado Libre"}`;
   const staleDays = activeQuote && isStale(activeQuote) ? daysSinceSaved(activeQuote) : null;
 
   const updatePrinter = (patch: Partial<Printer>) => {
@@ -456,6 +480,9 @@ export function Calculator() {
 
           <Section
             title="Impresora y energía"
+            open={sections.printer}
+            onToggle={toggleSection("printer")}
+            summary={printerSummary}
             lead={
               mode === "remote"
                 ? `Las impresoras se comparten en el taller${workshop ? ` "${workshop.name}"` : ""}. Lo que edites acá queda guardado en la impresora.`
@@ -522,6 +549,9 @@ export function Calculator() {
 
           <Section
             title="Mano de obra y extras"
+            open={sections.labor}
+            onToggle={toggleSection("labor")}
+            summary={laborSummary}
             lead="Tu tiempo de diseño, armado y post-proceso, más insumos comprados como tiras LED, tornillería o packaging. Se suman al precio tal cual, sin pasar por el margen."
           >
             <NumberField label="Valor de tu hora" value={input.laborRate} onChange={set("laborRate")} unit={`${sym}/h`} />
@@ -542,7 +572,13 @@ export function Calculator() {
             />
           </Section>
 
-          <Section title="Venta" lead="El precio sugerido es el costo de impresión por el margen, más mano de obra y extras.">
+          <Section
+            title="Venta"
+            open={sections.sale}
+            onToggle={toggleSection("sale")}
+            summary={`×${Number.isFinite(input.multiplier) ? input.multiplier : 1}, ${Math.max(1, Math.floor(input.quantity) || 1)} u.`}
+            lead="El precio sugerido es el costo de impresión por el margen, más mano de obra y extras."
+          >
             <div className="sm:col-span-2">
               <p className="block text-sm font-medium text-ink-2 mb-1.5">Margen</p>
               <div className="flex flex-wrap items-stretch gap-3">
@@ -588,7 +624,13 @@ export function Calculator() {
             />
           </Section>
 
-          <Section title="IVA y Mercado Libre" lead="Opcionales. Se aplican sobre el precio sugerido, por unidad.">
+          <Section
+            title="IVA y Mercado Libre"
+            open={sections.ml}
+            onToggle={toggleSection("ml")}
+            summary={mlSummary}
+            lead="Opcionales. Se aplican sobre el precio sugerido, por unidad."
+          >
             <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-3">
               <Checkbox
                 label="Agregar IVA al precio"
