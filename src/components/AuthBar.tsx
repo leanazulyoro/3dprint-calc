@@ -4,11 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { useData } from "@/lib/data-context";
 import { ChevronIcon, WrenchIcon } from "./icons";
 import { Skeleton } from "./Skeleton";
+import { WorkshopDialog } from "./WorkshopDialog";
 
 /** Login state in the top bar: magic link in a modal, workshop switcher, sign out. */
 export function AuthBar() {
-  const { configured, ready, user, workshops, workshop, selectWorkshop, signIn, signOut } = useData();
+  const { configured, ready, user, workshop, signIn, signOut } = useData();
   const [open, setOpen] = useState(false);
+  const [workshopOpen, setWorkshopOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [sending, setSending] = useState(false);
@@ -33,33 +35,20 @@ export function AuthBar() {
   }
 
   if (user) {
-    const pill = "inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent-soft/70 px-3 py-1.5 text-sm font-medium text-accent-ink";
     return (
       <div className="flex flex-wrap items-center gap-2 sm:ml-2">
-        {workshops.length > 1 ? (
-          <label className={`${pill} relative cursor-pointer`}>
-            <WrenchIcon />
-            <span className="max-w-40 truncate">{workshop?.name ?? "Taller"}</span>
-            <ChevronIcon />
-            <select
-              aria-label="Taller"
-              className="absolute inset-0 w-full cursor-pointer opacity-0"
-              value={workshop?.id ?? ""}
-              onChange={(e) => selectWorkshop(e.target.value)}
-            >
-              {workshops.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : (
-          <span className={pill} title="Tu taller">
-            <WrenchIcon />
-            <span className="max-w-40 truncate">{workshop?.name ?? "Sin taller"}</span>
-          </span>
-        )}
+        <button
+          type="button"
+          className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent-soft/70 px-3 py-1.5 text-sm font-medium text-accent-ink hover:bg-accent-soft"
+          aria-haspopup="dialog"
+          aria-expanded={workshopOpen}
+          onClick={() => setWorkshopOpen(true)}
+        >
+          <WrenchIcon />
+          <span className="max-w-40 truncate">{workshop?.name ?? "Sin taller"}</span>
+          <ChevronIcon />
+        </button>
+        <WorkshopDialog open={workshopOpen} onClose={() => setWorkshopOpen(false)} />
         <button type="button" className="btn py-1.5" onClick={() => void signOut()} title={user.email}>
           Salir
         </button>

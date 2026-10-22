@@ -18,14 +18,13 @@ const when = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "
 
 export function SavedQuotesPage() {
   const router = useRouter();
-  const { repo, mode, ready, workshop, joinWorkshop, renameWorkshop, setSavedCount } = useData();
+  const { repo, mode, ready, workshop, setSavedCount } = useData();
   const [quotes, setQuotes] = useState<Quote[] | null>(null);
   const [printers, setPrinters] = useState<Printer[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [localCount, setLocalCount] = useState(0);
-  const [joinCode, setJoinCode] = useState("");
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -167,20 +166,6 @@ export function SavedQuotesPage() {
     }
   };
 
-  const join = async () => {
-    setBusy(true);
-    setNotice(null);
-    try {
-      await joinWorkshop(joinCode);
-      setJoinCode("");
-      setNotice("Te uniste al taller.");
-    } catch (e) {
-      setNotice(e instanceof Error ? e.message : "No se pudo unir al taller.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const list = quotes ?? [];
 
   return (
@@ -221,54 +206,6 @@ export function SavedQuotesPage() {
           </div>
         </div>
       </header>
-
-      {mode === "remote" && workshop ? (
-        <section className="mt-6 rounded-lg border border-line bg-ticket p-4 grid gap-4 sm:grid-cols-2 items-start" aria-label="Taller">
-          <div>
-            <label htmlFor="workshop-name" className="block text-sm font-medium text-ink-2 mb-1.5">
-              Nombre del taller
-            </label>
-            <input
-              id="workshop-name"
-              type="text"
-              className="field"
-              defaultValue={workshop.name}
-              key={workshop.id}
-              onBlur={(e) => {
-                if (e.target.value.trim() && e.target.value.trim() !== workshop.name) void renameWorkshop(e.target.value);
-              }}
-            />
-            <p className="mt-1.5 text-xs text-ink-3">
-              Código para invitar: <span className="num font-semibold text-ink select-all">{workshop.joinCode}</span>.
-              Quien lo cargue ve y edita los mismos presupuestos e impresoras.
-            </p>
-          </div>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void join();
-            }}
-          >
-            <label htmlFor="join-code" className="block text-sm font-medium text-ink-2 mb-1.5">
-              Unirme a otro taller
-            </label>
-            <div className="flex items-stretch gap-2">
-              <input
-                id="join-code"
-                type="text"
-                className="field num"
-                placeholder="Código"
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value)}
-              />
-              <button type="submit" className="btn shrink-0" disabled={busy || !joinCode.trim()}>
-                Unirme
-              </button>
-            </div>
-            <p className="mt-1.5 text-xs text-ink-3">Pedile el código a quien creó el taller.</p>
-          </form>
-        </section>
-      ) : null}
 
       {mode === "remote" && localCount > 0 ? (
         <p className="mt-4 flex flex-wrap items-center gap-3 rounded-md border border-line bg-accent-soft/40 px-3 py-2 text-sm">
