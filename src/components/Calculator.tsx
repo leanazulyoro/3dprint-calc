@@ -400,7 +400,7 @@ export function Calculator() {
                 label="De dónde lo descargaste"
                 value={input.modelRef}
                 onChange={set("modelRef")}
-                placeholder="https://www.printables.com/model/…"
+                placeholder="https://makerworld.com/es/models/…"
                 maxLength={500}
                 hint="Hace falta para guardar, así después sabés de dónde salió."
               />
