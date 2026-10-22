@@ -272,7 +272,29 @@ export function SavedQuotesPage() {
       ) : null}
 
       {quotes === null ? (
-        <div className="mt-8 overflow-hidden rounded-lg border border-line bg-ticket" aria-busy="true" aria-label="Cargando presupuestos">
+        <>
+        <div className="sm:hidden mt-6 flex flex-col gap-3" aria-busy="true" aria-label="Cargando presupuestos">
+          {[0, 1].map((i) => (
+            <div key={i} className="rounded-lg border border-line bg-ticket p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col gap-2">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-3 w-28" />
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              </div>
+              <Skeleton className="mt-3 h-3.5 w-48" />
+              <div className="mt-3 flex gap-2">
+                <Skeleton className="h-10 grow" />
+                <Skeleton className="h-10 w-20" />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="hidden sm:block mt-8 overflow-hidden rounded-lg border border-line bg-ticket" aria-busy="true" aria-label="Cargando presupuestos">
           <div className="flex gap-6 border-b border-line px-3 py-3">
             <Skeleton className="h-3.5 w-16" />
             <Skeleton className="h-3.5 w-28" />
@@ -291,6 +313,7 @@ export function SavedQuotesPage() {
             </div>
           ))}
         </div>
+        </>
       ) : list.length === 0 ? (
         <p className="mt-8 rounded-lg border border-dashed border-line px-4 py-8 text-sm text-ink-2 text-center">
           Todavía no guardaste ninguno.{" "}
