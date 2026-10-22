@@ -21,7 +21,7 @@ import { useData } from "@/lib/data-context";
 import { hoursLabel, money, percent, type CurrencyCode } from "@/lib/format";
 import type { MlFee } from "@/lib/ml";
 import { defaultPrinter, matchPrinter, printerFields, printerFromFields, type Printer } from "@/lib/printers";
-import { newQuoteId, stripPrinter, withPrinter, type Quote } from "@/lib/quotes";
+import { daysSinceSaved, isStale, newQuoteId, stripPrinter, withPrinter, type Quote } from "@/lib/quotes";
 import {
   clearState,
   readActiveId,
@@ -215,6 +215,8 @@ export function Calculator() {
 
   const printer = printers.find((p) => p.id === printerId) ?? null;
   const isPreset = MARGIN_PRESETS.some((m) => m.value === input.multiplier);
+  const activeQuote = activeQuoteId ? (quotes.find((q) => q.id === activeQuoteId) ?? null) : null;
+  const staleDays = activeQuote && isStale(activeQuote) ? daysSinceSaved(activeQuote) : null;
 
   const updatePrinter = (patch: Partial<Printer>) => {
     if (!printer) return;
@@ -634,6 +636,7 @@ export function Calculator() {
             onSave={() => saveQuote(false)}
             onSaveAsNew={activeQuoteId ? () => saveQuote(true) : null}
             canSave={dataLoaded && !dataError}
+            staleDays={staleDays}
           />
         </div>
       </div>

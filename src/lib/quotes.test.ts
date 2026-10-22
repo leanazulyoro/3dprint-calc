@@ -4,7 +4,7 @@ import { DEFAULT_INPUT, calculate } from "./calc";
 import { CSV_COLUMNS, csvToQuotes, parseCsv, quoteToRow, quotesToCsv } from "./csv";
 import { newId } from "./db";
 import { defaultPrinter, matchPrinter, printerFields, printerFromFields, type Printer } from "./printers";
-import { normalizeQuote, stripPrinter, withPrinter, type Quote } from "./quotes";
+import { STALE_AFTER_DAYS, daysSinceSaved, isStale, normalizeQuote, stripPrinter, withPrinter, type Quote } from "./quotes";
 import { migrateQuotes } from "./migrate";
 import { LocalRepo } from "./repo";
 
@@ -151,6 +151,7 @@ describe("csv import", () => {
     expect(quotes[0].printerId).toBe(printer.id);
     expect(quotes[0].name).toBe("Lámpara; LED");
     expect(quotes[0].createdAt).toBe(q.createdAt);
+    expect(quotes[0].updatedAt).toBe(q.createdAt);
     expect(quotes[0].input).toEqual(q.input);
     expect(quotes[0].result.price).toBeCloseTo(q.result.price);
   });
@@ -224,5 +225,22 @@ describe("migrateQuotes", () => {
     await repo.putPrinter(defaultPrinter(repo.defaultPrinterId));
     await repo.putPrinter(defaultPrinter(repo.defaultPrinterId));
     expect(await repo.listPrinters()).toHaveLength(1);
+  });
+});
+
+describe("stale quotes", () => {
+  const day = 86_400_000;
+  const now = 1_760_000_000_000;
+
+  it("counts days since the last save, preferring updatedAt", () => {
+    expect(daysSinceSaved({ createdAt: now - 10 * day, updatedAt: now - 2 * day }, now)).toBe(2);
+    expect(daysSinceSaved({ createdAt: now - 10 * day, updatedAt: 0 }, now)).toBe(10);
+    expect(daysSinceSaved({ createdAt: now + day, updatedAt: 0 }, now)).toBe(0);
+  });
+
+  it("is stale from the threshold on", () => {
+    expect(isStale({ createdAt: now - (STALE_AFTER_DAYS - 1) * day, updatedAt: 0 }, now)).toBe(false);
+    expect(isStale({ createdAt: now - STALE_AFTER_DAYS * day, updatedAt: 0 }, now)).toBe(true);
+    expect(isStale({ createdAt: now - 90 * day, updatedAt: now - day }, now)).toBe(false);
   });
 });

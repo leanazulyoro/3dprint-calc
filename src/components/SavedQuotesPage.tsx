@@ -10,7 +10,7 @@ import { hasIndexedDb } from "@/lib/db";
 import { hoursLabel, money } from "@/lib/format";
 import { migrateQuotes } from "@/lib/migrate";
 import { printerFields, type Printer } from "@/lib/printers";
-import { withPrinter, type Quote } from "@/lib/quotes";
+import { daysSinceSaved, isStale, withPrinter, type Quote } from "@/lib/quotes";
 import { readActiveId, writeActiveId, writePrinterId, writeState } from "@/lib/storage";
 
 const when = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" });
@@ -323,15 +323,27 @@ export function SavedQuotesPage() {
                 const tag = r.ml ? "en ML" : q.input.vatEnabled ? "con IVA" : null;
                 const printerName = (q.printerId && printers.find((p) => p.id === q.printerId)?.name) || q.printerName;
                 const active = q.id === activeId;
+                const stale = isStale(q);
                 return (
                   <tr
                     key={q.id}
                     className={`border-b border-line/60 last:border-b-0 ${active ? "bg-accent-soft/60" : ""}`}
                   >
                     <td className="px-3 py-2.5 num whitespace-nowrap text-ink-2">{when.format(q.createdAt)}</td>
-                    <td className="px-3 py-2.5 font-medium max-w-[16rem] truncate">
-                      {q.name}
-                      {active ? <span className="ml-1.5 text-xs font-normal text-ink-3">en el form</span> : null}
+                    <td className="px-3 py-2.5 font-medium max-w-[18rem]">
+                      <span className="block truncate">
+                        {q.name}
+                        {active ? <span className="ml-1.5 text-xs font-normal text-ink-3">en el form</span> : null}
+                      </span>
+                      {stale ? (
+                        <span
+                          className="mt-1 inline-flex items-center gap-1 rounded-full bg-[color:var(--l-energy)]/15 px-2 py-0.5 text-xs font-medium text-ink"
+                          title={`Sin cambios hace ${daysSinceSaved(q)} días`}
+                        >
+                          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[color:var(--l-energy)]" />
+                          Desactualizado, verificar precios de filamentos
+                        </span>
+                      ) : null}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-ink-2">
                       {material}, {q.input.grams} g, {hoursLabel(r.printHours)}

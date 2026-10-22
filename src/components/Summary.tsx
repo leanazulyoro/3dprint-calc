@@ -15,6 +15,8 @@ type Props = {
   onSave: () => Promise<void> | void;
   onSaveAsNew: (() => Promise<void> | void) | null;
   canSave: boolean;
+  /** Days since the loaded quote was last saved, when it is old enough to worry. */
+  staleDays?: number | null;
 };
 
 export function buildLayers(r: CalcResult, failureRate: number, extrasNote = ""): Layer[] {
@@ -28,7 +30,7 @@ export function buildLayers(r: CalcResult, failureRate: number, extrasNote = "")
   ];
 }
 
-export function Summary({ input, result: r, currency, onCopyText, onCopyLink, onSave, onSaveAsNew, canSave }: Props) {
+export function Summary({ input, result: r, currency, onCopyText, onCopyLink, onSave, onSaveAsNew, canSave, staleDays = null }: Props) {
   const [flash, setFlash] = useState<string | null>(null);
   const layers = buildLayers(r, input.failureRate, input.extrasNote);
   const material = MATERIALS.find((m) => m.id === input.material)?.label ?? input.material;
@@ -59,6 +61,18 @@ export function Summary({ input, result: r, currency, onCopyText, onCopyLink, on
           {material}, {Number.isFinite(input.grams) ? input.grams : 0} g, {hoursLabel(r.printHours)}
         </p>
       </header>
+
+      {staleDays !== null ? (
+        <p
+          role="note"
+          className="no-print mt-4 flex items-start gap-2 rounded-md bg-[color:var(--l-energy)]/15 px-3 py-2 text-sm text-ink"
+        >
+          <span aria-hidden className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[color:var(--l-energy)]" />
+          <span>
+            Guardado hace {staleDays} días. Verificá los precios de filamentos antes de cotizar; al guardar cambios se renueva.
+          </span>
+        </p>
+      ) : null}
 
       <div className="mt-5">
         <p className="text-sm text-ink-2">Costo real</p>

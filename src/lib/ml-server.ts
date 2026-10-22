@@ -35,13 +35,15 @@ export function mlForgetToken() {
   cachedToken = null;
 }
 
-/** GET on the API with the app token. Returns the parsed body and the status. */
-export async function mlGet(path: string, params: Record<string, string> = {}): Promise<{ status: number; body: unknown }> {
+/** GET on the API with a given token. Returns the parsed body and the status. */
+export async function mlGetWith(
+  token: string,
+  path: string,
+  params: Record<string, string> = {},
+): Promise<{ status: number; body: unknown }> {
   const url = new URL(`${ML_API}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const token = await mlAppToken();
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" }, cache: "no-store" });
-  if (res.status === 401) mlForgetToken();
   let body: unknown = null;
   try {
     body = await res.json();
@@ -49,4 +51,11 @@ export async function mlGet(path: string, params: Record<string, string> = {}): 
     body = null;
   }
   return { status: res.status, body };
+}
+
+/** GET with the app token (client_credentials). */
+export async function mlGet(path: string, params: Record<string, string> = {}): Promise<{ status: number; body: unknown }> {
+  const r = await mlGetWith(await mlAppToken(), path, params);
+  if (r.status === 401) mlForgetToken();
+  return r;
 }

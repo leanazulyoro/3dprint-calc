@@ -49,3 +49,17 @@ export function normalizeQuote(raw: unknown): Quote {
       : (r.legacyPrinter as PrinterFields | undefined),
   };
 }
+
+/** After this long without being re-saved, a quote's filament prices are suspect. */
+export const STALE_AFTER_DAYS = 30;
+
+const DAY = 86_400_000;
+
+export function daysSinceSaved(q: Pick<Quote, "createdAt" | "updatedAt">, now = Date.now()): number {
+  const last = q.updatedAt || q.createdAt;
+  return Math.max(0, Math.floor((now - last) / DAY));
+}
+
+export function isStale(q: Pick<Quote, "createdAt" | "updatedAt">, now = Date.now()): boolean {
+  return daysSinceSaved(q, now) >= STALE_AFTER_DAYS;
+}

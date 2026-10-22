@@ -323,7 +323,8 @@ export function csvToQuotes(text: string, existingPrinters: Printer[] = [], now 
     quotes.push({
       id,
       createdAt,
-      updatedAt: now,
+      // An import restores what was quoted on that date; it is not a fresh review.
+      updatedAt: createdAt,
       name: input.name || `Importado ${line - 1}`,
       currency,
       printerId: printer.id,
